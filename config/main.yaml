@@ -1,0 +1,62 @@
+%YAML 1.2
+---
+processed_data_home: ./processed/mimic # where processed data lives
+output_home: ./output/mimic # where you can find trained models
+
+model_config: ./config/model/llama-32-lite.yaml
+max_seq_len: !!int &max_len 4096
+n_epochs: !!int 2
+run_name: &run_name cotorra-tuning
+
+tokens_of_interest: &tois
+  - XFR-IN//icu
+  - RESP//imv
+  - DSCG//expired
+  - DSCG//hospice
+  - XFR-IN//icu
+  - RESP//imv
+  - DSCG//expired
+  - DSCG//hospice
+  - LAB-RES//sodium_Q0
+  - LAB-RES//sodium_Q9
+  - LAB-RES//potassium_Q0
+  - LAB-RES//potassium_Q9
+  - LAB-RES//hemoglobin_Q0
+  - LAB-RES//glucose_serum_Q0
+  - VTL//heart_rate_Q9
+  - SOFA//resp-4
+  - SOFA//renal-4
+  - SOFA//liver-4
+  - SOFA//cv-4
+  - ASMT//cam_total_yes
+
+wandb:
+  project: cotorra
+  run_name: *run_name
+
+custom_loss: !!bool false
+
+time_based_rope:
+  sec_per_pos_id: !!int 300
+
+training_args:
+  report_to: wandb
+  run_name: *run_name
+  per_device_train_batch_size: !!int 1
+  per_device_eval_batch_size: !!int 1
+  save_total_limit: !!int 1
+  metric_for_best_model: eval_loss
+  load_best_model_at_end: !!bool true
+  greater_is_better: !!bool false
+  eval_strategy: steps
+  prediction_loss_only: !!bool true # may improve training speed
+  save_strategy: epoch
+  evaluation_strategy: epoch
+  ddp_find_unused_parameters: !!bool false
+  neftune_noise_alpha: !!float 5.0
+  auto_find_batch_size: !!bool false # turning this on may cause issues with hyperparameter tuning
+  learning_rate: !!float 2e-4
+  gradient_accumulation_steps: !!int 1
+  remove_unused_columns: !!bool false # otherwise `s_elapsed` is automatically dropped
+  bf16: !!bool true
+  # max_steps: !!int 10 # uncomment for testing purposes only

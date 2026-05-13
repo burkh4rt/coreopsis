@@ -1,0 +1,80 @@
+[project]
+    classifiers = [
+        "Development Status :: 2 - Pre-Alpha",
+        "Intended Audience :: Science/Research",
+        "Natural Language :: English",
+        "Programming Language :: Python :: 3",
+    ]
+    dependencies = [
+        "accelerate==0.34.2",
+        "click<8.2",
+        "cotorra @ git+https://github.com/bbj-lab/cotorra.git",
+        "flwr[simulation]==1.18.0",
+        "huggingface_hub>=0.23.2,<1.0",
+        "protobuf==4.25.3",
+        "ray==2.31.0",
+        "torch",
+        "transformers==4.45.2",
+        "typer==0.12.5",
+    ]
+    description = "choreographed federated learning of generative event models"
+    keywords = [
+        "federated learning",
+        "generative event models",
+        "configurable training",
+    ]
+    license = "MIT"
+    license-files = [ "LICEN[CS]E.*" ]
+    name = "coreopsis"
+    readme = { file = "README.md", content-type = "text/markdown" }
+    requires-python = ">=3.11"
+    version = "26.0.0"
+
+    [project.optional-dependencies]
+        dev = [ "ruff>=0.15.4" ]
+
+[build-system]
+    build-backend = "setuptools.build_meta"
+    requires      = [ "setuptools>=69", "wheel" ]
+
+[tool.flwr.app]
+    publisher = "burkh4rt"
+
+    [tool.flwr.app.components]
+        clientapp = "coreopsis.client_app:app"
+        serverapp = "coreopsis.server_app:app"
+
+    [tool.flwr.app.config]
+        model-dir         = "./output/"
+        num-server-rounds = 10
+
+[tool.flwr.federations]
+    default = "minimal"
+
+    [tool.flwr.federations.minimal]
+        options.backend.client-resources.num-cpus = 1
+        options.backend.client-resources.num-gpus = 0.3
+        options.num-supernodes                    = 3
+
+    [tool.flwr.federations.standard]
+        options.backend.client-resources.num-cpus = 2
+        options.backend.client-resources.num-gpus = 1
+        options.num-supernodes                    = 4
+
+[tool.ruff]
+    extend-exclude = [ "*.md" ]
+    line-length    = 88
+
+    [tool.ruff.format]
+        docstring-code-format     = true
+        indent-style              = "space"
+        line-ending               = "lf"
+        quote-style               = "double"
+        skip-magic-trailing-comma = true
+
+    [tool.ruff.lint]
+        ignore = [ "E731" ]
+        select = [ "E", "F", "I" ]
+
+        [tool.ruff.lint.isort]
+            known-first-party = [ "coreopsis" ]
