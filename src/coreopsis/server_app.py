@@ -4,13 +4,13 @@
 things the server does
 """
 
-from cotorra.logger import Logger
-from cotorra.trainer import Trainer
 from flwr.common import Context, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 
-from .save_fed_avg import SaveFedAvg
-from .task import get_weights
+from coreopsis.save_fed_avg import SaveFedAvg
+from coreopsis.task import get_weights
+from cotorra.logger import Logger
+from cotorra.trainer import Trainer
 
 
 def server_fn(context: Context):

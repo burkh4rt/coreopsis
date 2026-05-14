@@ -10,6 +10,7 @@ manner.
 ```bash
 git clone git@github.com:bbj-lab/coreopsis.git
 cd coreopsis
+# ln -s ../cocoa/processed ./processed
 mkdir logs
 python -m venv .venv
 . .venv/bin/activate
@@ -31,7 +32,7 @@ Garden remains open to this day.
 ```sh
 tmux new -s co || tmux a -t co
 . .venv/bin/activate
-flwr run . | tee logs/${SLURM_JOB_ID}-flwr.stddout
+flwr run . | tee "logs/$(date --iso-8601=minutes).stddout"
 ```
 
 [^1]:
@@ -40,17 +41,23 @@ flwr run . | tee logs/${SLURM_JOB_ID}-flwr.stddout
 
 <!--
 
+Run in tmux:
+```
+tmux new -s co || tmux a -t co
+```
+
 Format:
 ```sh
 ruff format .
-shfmt -w .
+ruff check . --fix
 ```
 
 Send to bbj-lab1:
 ```
 rsync -avht \
- --delete \
- --exclude "output/" \
+ --exclude "output" \
+ --exclude "processed/" \
+ --exclude "logs/" \
  --exclude "wandb/" \
  --exclude ".venv/" \
  --exclude ".idea/" \

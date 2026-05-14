@@ -14,7 +14,7 @@ from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 from flwr.common.logger import log
 
-from .task import get_net, get_weights, load_data, set_weights, test, train
+from coreopsis.task import get_net, get_weights, load_data, set_weights, test, train
 
 
 class FlowerClient(NumPyClient):

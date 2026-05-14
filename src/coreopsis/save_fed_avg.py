@@ -9,7 +9,7 @@ import pathlib
 import flwr as fl
 import transformers
 
-from .task import set_weights
+from coreopsis.task import set_weights
 
 
 class SaveFedAvg(fl.server.strategy.FedAvg):
@@ -31,10 +31,8 @@ class SaveFedAvg(fl.server.strategy.FedAvg):
 
         set_weights(self.net, fl.common.parameters_to_ndarrays(aggregated_parameters))
         self.net.save_pretrained(
-            pathlib.Path(self.context.run_config["model-dir"])
-            .expanduser()
-            .resolve()
-            .joinpath("fms-flw-round-{sr}".format(sr=server_round))
+            pathlib.Path(self.context.run_config["model-dir"]).expanduser().resolve()
+            / f"fms-flw-round-{server_round}"
         )
 
         return aggregated_parameters, aggregated_metrics

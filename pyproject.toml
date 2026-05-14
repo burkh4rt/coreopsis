@@ -66,15 +66,14 @@
     line-length    = 88
 
     [tool.ruff.format]
-        docstring-code-format     = true
-        indent-style              = "space"
-        line-ending               = "lf"
-        quote-style               = "double"
-        skip-magic-trailing-comma = true
+        docstring-code-format = true
+        indent-style          = "space"
+        line-ending           = "lf"
+        quote-style           = "double"
 
     [tool.ruff.lint]
         ignore = [ "E731" ]
         select = [ "E", "F", "I" ]
 
         [tool.ruff.lint.isort]
-            known-first-party = [ "coreopsis" ]
+            known-first-party = [ "cocoa", "cotorra", "coreopsis" ]
