@@ -34,7 +34,12 @@ wandb:
   project: cotorra
   run_name: *run_name
 
-custom_loss: !!bool false
+custom_loss: !!bool true
+quantile_token_loss:
+  qt_weight: !!float 20.0
+label_weighted_loss:
+  tokens_of_interest: *tois
+  toi_weight: !!float 20.0
 
 time_based_rope:
   sec_per_pos_id: !!int 300
@@ -59,4 +64,3 @@ training_args:
   gradient_accumulation_steps: !!int 1
   remove_unused_columns: !!bool false # otherwise `s_elapsed` is automatically dropped
   bf16: !!bool true
-  # max_steps: !!int 10 # uncomment for testing purposes only

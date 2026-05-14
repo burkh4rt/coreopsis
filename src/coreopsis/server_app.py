@@ -4,18 +4,20 @@
 things the server does
 """
 
+import logging
+
 from flwr.common import Context, ndarrays_to_parameters
+from flwr.common.logger import log
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 
 from coreopsis.save_fed_avg import SaveFedAvg
 from coreopsis.task import get_weights
-from cotorra.logger import Logger
-from cotorra.trainer import Trainer
+from coreopsis.trainer import Trainer
 
 
 def server_fn(context: Context):
 
-    Logger().info(f"{context.run_config=}")
+    log(logging.INFO, f"{context.run_config=}")
 
     net = Trainer().model_init()
     weights = get_weights(net)

@@ -48,7 +48,7 @@ class Loader(CotorraLoader):
 
 
 if __name__ == "__main__":
-    from cotorra.trainer import Trainer
+    from coreopsis.trainer import Trainer
 
     trainer = Trainer()
     self = Loader(cfg=trainer.cfg, processed_data_home=trainer.processed_data_home)

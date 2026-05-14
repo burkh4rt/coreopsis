@@ -6,20 +6,13 @@ utilities
 
 import collections
 import pathlib
-import warnings
 
 import torch
-import transformers
-from cotorra.trainer import Trainer as c_Trainer
-from datasets.utils.logging import disable_progress_bar
 from transformers import EarlyStoppingCallback, TrainingArguments
-from transformers import Trainer as t_Trainer
 
 from coreopsis.loader import Loader
-
-warnings.filterwarnings("ignore")
-disable_progress_bar()
-transformers.logging.set_verbosity_error()
+from coreopsis.trainer import Trainer as c_Trainer
+from coreopsis.trainer import TrainerWithCustomLoss
 
 
 def load_data(partition_id: int, num_partitions: int):
@@ -41,28 +34,25 @@ def load_data(partition_id: int, num_partitions: int):
 
 
 def train(net, trainloader, testloader):
-    trainer = t_Trainer(
+    trainer = TrainerWithCustomLoss(
         model=net,
-        data_collator=c_Trainer().collate_fn,
+        data_collator=(_c := c_Trainer()).collate_fn,
+        compute_loss_func=_c.loss,
         train_dataset=trainloader,
         eval_dataset=testloader,
-        args=TrainingArguments(
-            output_dir=str(c_Trainer().output_home), **c_Trainer().cfg.training_args
-        ),
+        args=TrainingArguments(output_dir=str(_c.output_home), **_c.cfg.training_args),
         callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
     trainer.train()
 
 
 def test(net, testloader):
-    trainer = t_Trainer(
+    trainer = TrainerWithCustomLoss(
         model=net,
-        data_collator=c_Trainer().collate_fn,
+        data_collator=(_c := c_Trainer()).collate_fn,
+        compute_loss_func=_c.loss,
         eval_dataset=testloader,
-        compute_loss_func=c_Trainer().loss,
-        args=TrainingArguments(
-            output_dir=str(c_Trainer().output_home), **c_Trainer().cfg.training_args
-        ),
+        args=TrainingArguments(output_dir=str(_c.output_home), **_c.cfg.training_args),
     )
     return trainer.evaluate()["eval_loss"]
 
