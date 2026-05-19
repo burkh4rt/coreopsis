@@ -55,9 +55,30 @@ training_args:
   save_strategy: epoch
   ddp_find_unused_parameters: !!bool false
   log_level: warning
-  neftune_noise_alpha: !!float 5.0
+  # neftune_noise_alpha: !!float 5.0 # apparently incompatible with hyperparameter tuning
   auto_find_batch_size: !!bool false # turning this on may cause issues with hyperparameter tuning
   learning_rate: !!float 2e-4
   gradient_accumulation_steps: !!int 1
   remove_unused_columns: !!bool false # otherwise `s_elapsed` is automatically dropped
   bf16: !!bool true
+
+tuning_args:
+  direction: minimize
+  backend: optuna
+  n_trials: !!int 10
+
+extract:
+  max_len: *max_len
+  batch_size: !!int 64
+  shard_size: !!int 10000 # number of samples per shard when saving extracted features
+
+score:
+  max_len: *max_len
+  n_samp: !!int 10 # MC samples per input per trajectory type
+  target_tokens: *tois # token-based outcomes of interest
+  end_tokens: # tokens that naturally terminate a sequence
+    - EOS
+  suppressed_tokens: [] # tokens to suppress (e.g. PAD) via logit bias
+  trunc_id: !!int 0 # token id to force after time horizon exceeded
+  max_time: !!int 1440 # 1 day, max time horizon in minutes
+  batch_size: !!int 64

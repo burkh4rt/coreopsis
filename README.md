@@ -211,7 +211,7 @@ Send to bbj-lab1:
 ```
 rsync -avht \
  --exclude "output" \
- --exclude "processed/" \
+ --exclude "./processed/" \
  --exclude "logs/" \
  --exclude "wandb/" \
  --exclude ".venv/" \

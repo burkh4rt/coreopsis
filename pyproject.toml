@@ -8,6 +8,7 @@
     dependencies = [
         "accelerate==0.34.2",
         "click<8.2",
+        "cocoa @ git+https://github.com/burkh4rt/cocoa.git@coreopsis-stable",
         "cotorra @ git+https://github.com/burkh4rt/cotorra.git@coreopsis-stable",
         "flwr[simulation]==1.18.0",
         "huggingface_hub>=0.23.2,<1.0",
@@ -28,14 +29,14 @@
     name = "coreopsis"
     readme = { file = "README.md", content-type = "text/markdown" }
     requires-python = ">=3.11"
-    version = "26.1.0"
+    version = "26.3.1"
 
     [project.optional-dependencies]
-        dev = [ "ruff>=0.15.4" ]
+        dev = [ "pip", "ruff" ]
 
 [build-system]
     build-backend = "setuptools.build_meta"
-    requires      = [ "setuptools>=69", "wheel" ]
+    requires      = [ "setuptools", "wheel" ]
 
 [tool.flwr.app]
     publisher = "burkh4rt"

@@ -6,26 +6,11 @@ classes supporting model training
 
 import pathlib
 
-from transformers import Trainer as t_Trainer
 from transformers import TrainingArguments
 
 from coreopsis.loader import Loader
 from cotorra.trainer import Trainer as CotorraTrainer
-
-
-class TrainerWithCustomLoss(t_Trainer):
-    def __init__(self, compute_loss_func=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.compute_loss_func = compute_loss_func
-
-    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-        if self.compute_loss_func is not None:
-            labels = inputs.get("labels")
-            outputs = model(**inputs)
-            loss = self.compute_loss_func(outputs, labels)
-            return (loss, outputs) if return_outputs else loss
-        else:
-            return super().compute_loss(model, inputs, return_outputs, **kwargs)
+from cotorra.trainer import TrainerWithCustomLoss
 
 
 class Trainer(CotorraTrainer):
