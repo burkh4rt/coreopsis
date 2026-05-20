@@ -8,39 +8,40 @@ dsets=(
 	"mimic-post14"
 	"ucmc-first"
 )
+config_home=./src/coreopsis/config
 
 # collate data
 for ds in "${dsets[@]}"; do
 	cocoa collate \
-		--collation-config ./config/collation/clif-21.yaml \
+		--collation-config ${config_home}/collation.yaml \
 		--raw-data-home ./data-raw/${ds} \
 		--processed-data-home ./processed/${ds}
 done
 
 # learn tokenizer on first dataset
 cocoa tokenize \
-	--tokenization-config ./config/tokenization/clif-21.yaml \
+	--tokenization-config ${config_home}/tokenization.yaml \
 	--processed-data-home ./processed/${dsets[0]}
 
 # apply tokenizer to other datasets
 for ds in "${dsets[@]:1}"; do
 	cocoa tokenize \
+		--tokenization-config ${config_home}/tokenization.yaml \
 		--tokenizer-home ./processed/${dsets[0]}/tokenizer.yaml \
-		--tokenization-config ./config/tokenization/clif-21.yaml \
 		--processed-data-home ./processed/${ds}
 done
 
 # winnow data (prepare for inference)
 for ds in "${dsets[@]}"; do
 	cocoa winnow \
-		--winnowing-config ./config/winnowing/clif-21.yaml \
+		--winnowing-config ${config_home}/winnowing.yaml \
 		--processed-data-home ./processed/${ds}
 done
 
 # train separate models on each dataset
 for ds in "${dsets[@]}"; do
-	cotorra tune \
-		--model-config ./config/model/llama-32.yaml \
+	cotorra train \
+		--training-config ${config_home}/training.yaml \
 		--processed-data-home ./processed/${ds} \
 		--output-home ./output/${ds}
 done

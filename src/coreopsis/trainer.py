@@ -16,11 +16,17 @@ from cotorra.trainer import TrainerWithCustomLoss
 class Trainer(CotorraTrainer):
     def __init__(
         self,
-        main_cfg: pathlib.Path | str = None,
-        mdl_cfg: pathlib.Path | str = None,
+        training_cfg: pathlib.Path | str = None,
+        processed_data_home: pathlib.Path | str = None,
+        output_home: pathlib.Path | str = None,
         **kwargs,
     ):
-        super().__init__(main_cfg=main_cfg, mdl_cfg=mdl_cfg, **kwargs)
+        super().__init__(
+            training_cfg=training_cfg,
+            processed_data_home=processed_data_home,
+            output_home=output_home,
+            **kwargs,
+        )
         self.loader = Loader(self.cfg, self.processed_data_home)
 
     def _make_trainer(self) -> TrainerWithCustomLoss:
@@ -33,7 +39,7 @@ class Trainer(CotorraTrainer):
             args=TrainingArguments(
                 output_dir=str(self.output_home), **self.cfg.training_args
             ),
-        )
+        )  # no early stopping
 
 
 if __name__ == "__main__":

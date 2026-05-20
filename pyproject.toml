@@ -8,8 +8,8 @@
     dependencies = [
         "accelerate==0.34.2",
         "click<8.2",
-        "cocoa @ git+https://github.com/burkh4rt/cocoa.git@coreopsis-stable",
-        "cotorra @ git+https://github.com/burkh4rt/cotorra.git@coreopsis-stable",
+        "cocoa @ git+https://github.com/burkh4rt/cocoa.git@config-refactor",
+        "cotorra @ git+https://github.com/burkh4rt/cotorra.git@config-refactor",
         "flwr[simulation]==1.18.0",
         "huggingface_hub>=0.23.2,<1.0",
         "protobuf==4.25.3",
@@ -29,7 +29,13 @@
     name = "coreopsis"
     readme = { file = "README.md", content-type = "text/markdown" }
     requires-python = ">=3.11"
-    version = "26.3.1"
+    version = "26.4.0"
+
+    [project.scripts]
+        coreopsis = "coreopsis.cli:main"
+
+    [project.urls]
+        Repository = "https://github.com/burkh4rt/coreopsis"
 
     [project.optional-dependencies]
         dev = [ "pip", "ruff" ]
@@ -86,3 +92,12 @@
         [tool.ruff.lint.isort]
             known-first-party       = [ "cocoa", "cotorra", "coreopsis" ]
             split-on-trailing-comma = false
+
+[tool.setuptools]
+    include-package-data = true
+
+    [tool.setuptools.packages.find]
+        where = [ "src" ]
+
+    [tool.setuptools.package-data]
+        "coreopsis.config" = [ "*.yaml" ]
