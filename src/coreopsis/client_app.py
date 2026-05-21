@@ -8,6 +8,7 @@ NB: new clients are created at the start of every round
 import hashlib
 import json
 import logging
+import math
 import time
 
 from flwr.client import ClientApp, NumPyClient
@@ -53,6 +54,9 @@ class FlowerClient(NumPyClient):
         set_weights(self.trainer.model, parameters)
         num_rounds = int(self.context.run_config["num-server-rounds"])
         round_num = config.get("server_round", 1)
+
+        progress = (round_num - 1) / max(num_rounds, 1)
+        self.trainer.args.learning_rate *= 0.5 * (1 + math.cos(math.pi * progress))
         self.trainer.train_dataset = shard = self.trainer.train_dataset.shard(
             num_shards=num_rounds, index=round_num - 1
         )

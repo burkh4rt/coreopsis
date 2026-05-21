@@ -33,7 +33,7 @@ remains open to this day.
 ```sh
 tmux new -s co || tmux a -t co
 . .venv/bin/activate
-flwr run . | tee "logs/$(date --iso-8601=minutes).stddout"
+coreopsis run . | tee "logs/$(date --iso-8601=minutes).stddout"
 ```
 
 ## Configuration
@@ -42,33 +42,37 @@ flwr run . | tee "logs/$(date --iso-8601=minutes).stddout"
 
 The `[tool.flwr.app.config]` table controls top-level training behaviour:
 
-| Key                 | Default     | Description                                                         |
-| ------------------- | ----------- | ------------------------------------------------------------------- |
-| `output-home`       | `./output/` | Directory where checkpoints and the final federated model are saved |
-| `num-server-rounds` | `10`        | Number of federated averaging rounds                                |
+| Key                  | Default                                         | Description                                                            |
+| -------------------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `datasets`           | `'["mimic-pre14","mimic-post14","ucmc-first"]'` | JSON array of dataset names, one per client partition                  |
+| `fed-strategy`       | `"FedAvgM"`                                     | Federated averaging strategy (`FedAvg`, `FedProx`, or `FedAvgM`)       |
+| `num-server-rounds`  | `3`                                             | Number of federated averaging rounds                                   |
+| `output-home`        | `./output/`                                     | Directory where checkpoints and the final federated model are saved    |
+| `processed-data-dir` | `./processed/`                                  | Path to processed data (tokenized timelines, splits, tokenizer config) |
+| `training-config`    | `./src/coreopsis/config/training.yaml`          | Path to the training configuration YAML [see below]                    |
 
-Federations are defined under `[tool.flwr.federations]`. Two are provided out of
-the box:
+Federations are defined under `[tool.flwr.federations]`. Three are provided out
+of the box:
 
 | Federation            | `num-supernodes` | CPUs per node | GPUs per node |
 | --------------------- | ---------------- | ------------- | ------------- |
+| `local`               | 3                | 0.3           | 0             |
 | `minimal` _(default)_ | 3                | 1             | 0.3           |
 | `standard`            | 4                | 2             | 1.0           |
 
-Run a specific federation with `flwr run . <federation-name>`. Add new
+Run a specific federation with `coreopsis run . <federation-name>`. Add new
 federations by adding a `[tool.flwr.federations.<name>]` block with the same
 `options.*` keys.
 
-### Main configuration ([example](config/main.yaml))
+### Training configuration ([example](src/coreopsis/config/training.yaml))
 
 _These mirror the ones
 [found in cotorra](https://github.com/bbj-lab/cotorra#configuration)._
 
-- **processed_data_home**: Path to processed data (tokenized timelines, splits,
-  tokenizer config).
-- **output_home**: Directory to save model outputs and checkpoints.
-- **model_config**: Path to the model configuration YAML (e.g.,
-  config/model/llama-32-lite.yaml). [see below]
+- **model_name**: Name or path of the model (e.g., `meta-llama/Llama-3.2-1B`).
+- **model_args**: Model architecture parameters passed directly to HuggingFace's
+  [`AutoConfig`](https://huggingface.co/docs/transformers/en/model_doc/auto)
+  object.
 - **max_seq_len**: Maximum sequence length for model input.
 - **n_epochs**: Number of epochs (handled in the dataloader, not the trainer).
 - **run_name**: Name for the current run (referenced by `wandb` and
@@ -92,18 +96,13 @@ _These mirror the ones
   - **sec_per_pos_id**: Number of seconds represented by one position id
     increment.
 - **training_args**: Arguments passed to HuggingFace's
-  [`TrainingArguments`](https://huggingface.co/docs/transformers/en/main_classes/trainer#transformers.TrainingArguments)
+  [`TrainingArguments`](https://huggingface.co/docs/transformers/en/main_classes/trainer#transformers.TrainingArguments).
+- **tuning_args** _(optional)_: Hyperparameter search configuration.
+  - **direction**: Optimization direction (`minimize` or `maximize`).
+  - **backend**: Tuning backend (e.g., `optuna`).
+  - **n_trials**: Number of hyperparameter search trials.
 
-### Model configuration ([example](config/model/llama-32-lite.yaml))
-
-_[Also as in cotorra](https://github.com/bbj-lab/cotorra#model-configuration-example)._
-
-- **model_name**: Name or path of the model (e.g., meta-llama/Llama-3.2-1B).
-- **model_args**: Model architecture parameters passed directly to HuggingFace's
-  [`AutoConfig`](https://huggingface.co/docs/transformers/en/model_doc/auto)
-  object
-
-## Training ecosystem
+## Modeling ecosystem
 
 This is the federated component of a series of libraries dedicated to
 configurable collation and training:
@@ -116,12 +115,12 @@ configurable collation and training:
 
 ### CLI
 
-Flower provides a CLI:
+We've wrapped the following flower CLI:
 
 ```
- Usage: flwr [OPTIONS] COMMAND [ARGS]...
+ Usage: coreopsis [OPTIONS] COMMAND [ARGS]...
 
- flwr is the Flower command line interface.
+ Choreographed federated learning with flower (vXX.X.X)
 
 ╭─ Options ───────────────────────────────────────────────────────────────────╮
 │ --version             -V        Show the version and exit.                  │
@@ -143,10 +142,10 @@ Flower provides a CLI:
 ╰─────────────────────────────────────────────────────────────────────────────╯
 ```
 
-The primary command to call is `flwr run` with documentation as follows:
+The primary command to call is `coreopsis run` with documentation as follows:
 
 ```
- Usage: flwr run [OPTIONS] [APP] [FEDERATION]
+ Usage: coreopsis run [OPTIONS] [APP] [FEDERATION]
 
  Run Flower App.
 
@@ -219,5 +218,26 @@ rsync -avht \
  ~/Documents/chicago/coreopsis \
  bbj-lab1:~
 ```
+
+Send to randi:
+```
+rsync -avht \
+ --exclude "output" \
+ --exclude "./processed/" \
+ --exclude "logs/" \
+ --exclude "wandb/" \
+ --exclude ".venv/" \
+ --exclude ".idea/" \
+ ~/Documents/chicago/coreopsis \
+ randi:/gpfs/data/bbj-lab/users/burkh4rt
+```
+
+rsync -avht \
+ bbj-lab1:~/coreopsis/processed \
+ ~/Downloads/
+
+rsync -avht \
+ ~/Downloads/processed \
+ randi:/gpfs/data/bbj-lab/users/burkh4rt/
 
 -->

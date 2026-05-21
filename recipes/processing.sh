@@ -45,3 +45,6 @@ for ds in "${dsets[@]}"; do
 		--processed-data-home ./processed/${ds} \
 		--output-home ./output/${ds}
 done
+
+# run federated learning
+coreopsis run

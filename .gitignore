@@ -2,9 +2,9 @@
 .venv/*
 .idea
 .ruff_cache
-wandb/
-output/
-processed/
+wandb
+output
+processed
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

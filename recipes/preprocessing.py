@@ -39,14 +39,12 @@ hosp_post14 = (
     .lazy()
 )
 
-
 pl.scan_parquet(
     h_pre14 := data_raw / "mimic-pre14" / "clif_hospitalization.parquet"
 ).join(hosp_pre14, on="hospitalization_id", how="inner").sink_parquet(h_pre14)
 pl.scan_parquet(
     h_post14 := data_raw / "mimic-post14" / "clif_hospitalization.parquet"
 ).join(hosp_post14, on="hospitalization_id", how="inner").sink_parquet(h_post14)
-
 
 (
     pl.scan_parquet(data_raw / "ucmc-2.1.0" / "clif_hospitalization.parquet")
