@@ -1,4 +1,8 @@
 [project]
+    authors = [
+        { name = "Michael C. Burkhart", email = "burkh4rt@uchicago.edu" },
+        { name = "Brett K. Beaulieu-Jones", email = "beaulieujones@uchicago.edu" },
+    ]
     classifiers = [
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Science/Research",
@@ -53,7 +57,7 @@
 
     [tool.flwr.app.config]
         datasets           = '["mimic-pre14","mimic-post14","ucmc-first"]'
-        fed-strategy       = "FedAvgM"                                     # options: FedAvg, FedProx, FedAvgM
+        fed-strategy       = "FedAvgM"                                     # options: FedAvg, FedAvgM
         num-server-rounds  = 3
         output-home        = "./output/"
         processed-data-dir = "./processed/"

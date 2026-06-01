@@ -16,19 +16,22 @@ export FLWR_TELEMETRY_ENABLED=0
 
 coreopsis run . standard \
 	--stream \
-	--run-config \
-	"'fed-strategy'='FedAvg' \
-		'output-home'='./output/fedavg10' \
-		'num-server-rounds'=10"
+	--run-config "
+				 'fed-strategy'='FedAvg'
+		         'output-home'='./output/fedavg10'
+		         'num-server-rounds'=10
+				 "
 
 # coreopsis run . standard \
 # 	--stream \
-# 	--run-config "'fed-strategy'='FedAvgM' 'output-home'='./output/fedavgm'"
+# 	--run-config "
+# 				 'fed-strategy'='FedAvg'
+# 				 'output-home'='./output/fedavg'
+# 				 "
 
 # coreopsis run . standard \
 # 	--stream \
-# 	--run-config "'fed-strategy'='FedAvgM' 'output-home'='./output/fedavg'"
-
-# coreopsis run . standard \
-# 	--stream \
-# 	--run-config "'fed-strategy'='FedProx' 'output-home'='./output/fedprox'"
+# 	--run-config "
+# 	             'fed-strategy'='FedAvgM'
+# 	             'output-home'='./output/fedavgm'
+# 				 "

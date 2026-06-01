@@ -43,9 +43,5 @@ class SaveFedAvg(SaveModelMixin, fl.server.strategy.FedAvg):
     pass
 
 
-class SaveFedProx(SaveModelMixin, fl.server.strategy.FedProx):
-    pass
-
-
 class SaveFedAvgM(SaveModelMixin, fl.server.strategy.FedAvgM):
     pass

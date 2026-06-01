@@ -1,11 +1,29 @@
-# Coreopsis: configurable, choreographed training with flower
+# Coreopsis: choreographed training with flower
 
-> 🌼 over 89 types of coreopsis have been planted in Chicago
+> 🌼 over 89 types of coreopsis have called Chicago home
 
-This [flower](https://flower.ai) app trains a foundation model on tokenized
-electronic health records in a federated manner.
+<img src="img/coreopsis.png" alt="cocoa bean" width="400" style="display: block;
+margin: 0 auto; -webkit-mask-image: radial-gradient(
+    ellipse at center,
+    rgba(0,0,0,1) 50%,
+    rgba(0,0,0,0) 100%
+  );
+  mask-image: radial-gradient(
+    ellipse at center,
+    rgba(0,0,0,1) 50%,
+    rgba(0,0,0,0) 100%
+  );"/>
 
-## Install
+## About
+
+This [flower](https://flower.ai) app trains generative event models (GEMs) on
+tokenized electronic health records (EHRs) in a federated manner. In 1989, "the
+Chicago Botanic Garden created a garden solely to compare perennials, and
+_coreopsis_ was one of the inaugural trials." [^1] The
+[Lavin Plant Evaluation Garden](https://www.chicagobotanic.org/gardens/planteval)
+remains open to this day.
+
+## Installation
 
 ```bash
 git clone git@github.com:bbj-lab/coreopsis.git
@@ -18,15 +36,6 @@ pip install -e . \
   --index-url https://download.pytorch.org/whl/cu128 \
   --extra-index-url https://pypi.org/simple
 ```
-
-## About
-
-This repo provides a configurable flower app for the federated training of
-generative event models (GEMs) on electronic health records (EHRs). In 1989, "the
-Chicago Botanic Garden created a garden solely to compare perennials, and
-_coreopsis_ was one of the inaugural trials." [^1] The
-[Lavin Plant Evaluation Garden](https://www.chicagobotanic.org/gardens/planteval)
-remains open to this day.
 
 ## Run training
 
@@ -45,7 +54,7 @@ The `[tool.flwr.app.config]` table controls top-level training behaviour:
 | Key                  | Default                                         | Description                                                            |
 | -------------------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
 | `datasets`           | `'["mimic-pre14","mimic-post14","ucmc-first"]'` | JSON array of dataset names, one per client partition                  |
-| `fed-strategy`       | `"FedAvgM"`                                     | Federated averaging strategy (`FedAvg`, `FedProx`, or `FedAvgM`)       |
+| `fed-strategy`       | `"FedAvgM"`                                     | Federated averaging strategy (`FedAvg` or `FedAvgM`)                   |
 | `num-server-rounds`  | `3`                                             | Number of federated averaging rounds                                   |
 | `output-home`        | `./output/`                                     | Directory where checkpoints and the final federated model are saved    |
 | `processed-data-dir` | `./processed/`                                  | Path to processed data (tokenized timelines, splits, tokenizer config) |
