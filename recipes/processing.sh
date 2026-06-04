@@ -47,4 +47,39 @@ for ds in "${dsets[@]}"; do
 done
 
 # run federated learning
-coreopsis run
+coreopsis run . standard \
+	--stream \
+	--run-config "
+				 'fed-strategy'='FedAvg'
+		         'output-home'='./output/fedavg10'
+		         'num-server-rounds'=10
+				 "
+
+# extract reps for each dataset, for each model
+for ds in "${dsets[@]}"; do
+	for mdl in "fedavg10/coreopsis-round-10" \
+		"mimic-pre14/mdl-coreopsis-training" \
+		"mimic-post14/mdl-coreopsis-training" \
+		"ucmc-first/mdl-coreopsis-training"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+	done
+done
+
+# make predictions for each dataset, for each model
+for ds in "${dsets[@]}"; do
+	for mdl in "fedavg10/coreopsis-round-10" \
+		"mimic-pre14/mdl-coreopsis-training" \
+		"mimic-post14/mdl-coreopsis-training" \
+		"ucmc-first/mdl-coreopsis-training"; do
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--verbose
+	done
+done

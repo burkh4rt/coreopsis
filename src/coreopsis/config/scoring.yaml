@@ -1,7 +1,6 @@
 %YAML 1.2
 ---
 max_seq_len: !!int &max_len 4096
-run_name: &run_name cotorra-tuning
 
 tokens_of_interest: &tois
   - XFR-IN//icu
@@ -23,11 +22,11 @@ tokens_of_interest: &tois
 
 score:
   max_len: *max_len
-  n_samp: !!int 10 # MC samples per input per trajectory type
+  n_samp: !!int 10 # for generative scoring, MC samples per input per trajectory type
   target_tokens: *tois # token-based outcomes of interest
   end_tokens: # tokens that naturally terminate a sequence
     - EOS
   suppressed_tokens: [] # tokens to suppress (e.g. PAD) via logit bias
   trunc_id: !!int 0 # token id to force after time horizon exceeded
-  max_time: !!int 1440 # 1 day, max time horizon in minutes
+  max_time: !!int 1440 # 1 day-- for generative scoring, max time horizon in minutes
   batch_size: !!int 64
