@@ -73,10 +73,21 @@ coreopsis run . standard \
 				 'datasets'='[\"mimic-pre14\",\"mimic-post14\",\"ucmc-first\"]'
 				 "
 
+# try adam
+coreopsis run . standard \
+	--stream \
+	--run-config "
+				 'fed-strategy'='FedAdam'
+		         'output-home'='./output/fedadam10'
+		         'num-server-rounds'=10
+				 'datasets'='[\"mimic-pre14\",\"mimic-post14\",\"ucmc-first\"]'
+				 "
+
 # extract reps for each dataset, for each model
 for ds in "${dsets[@]}"; do
 	for mdl in "fedavg10/checkpoint-2820" \
 		"fedavgm10/checkpoint-4230" \
+		"fedadam10/checkpoint-4230" \
 		"mimic-pre14/checkpoint-5037" \
 		"mimic-post14/checkpoint-8412" \
 		"ucmc-first/checkpoint-42300" \
