@@ -4,6 +4,8 @@
 collect results
 """
 
+import fnmatch
+import importlib.resources as resources
 import pathlib
 
 import numpy as np
@@ -15,15 +17,26 @@ from cotorra.util import bootstrap_ci
 
 hm = pathlib.Path("~/coreopsis").expanduser().resolve()
 
-dsets = ["mimic-pre14", "mimic-post14", "ucmc-first", "all"]
-mdls = [f"mdl-{ds}" for ds in dsets] + ["mdl-fedavg10"]
-tois = OmegaConf.load(hm / "src" / "coreopsis" / "config" / "scoring.yaml")[
-    "tokens_of_interest"
+dsets = [f"mimic-{y:02d}" for y in range(8, 21, 3)] + [
+    f"ucmc-{y}" for y in range(18, 25)
+]
+mdls = [f"mdl-{ds}" for ds in dsets] + ["mdl-all", "mdl-fedavg10"]
+grokked_outcome_tokens = [
+    x
+    for x in OmegaConf.load(
+        hm / "processed" / dsets[0] / "tokenizer.yaml"
+    ).lookup.keys()
+    if any(
+        fnmatch.fnmatch(x, p)
+        for p in OmegaConf.load(resources.files("coreopsis.config") / "scoring.yaml")[
+            "tokens_of_interest"
+        ]
+    )
 ]
 
 for met in ["roc_auc", "pr_auc"]:  # "brier",
     print(f"=== {met} ===")
-    for tt in tois:
+    for tt in grokked_outcome_tokens:
         print(f"--- {tt} ---")
         results = pd.DataFrame(columns=dsets, index=pd.Index(mdls, name="models"))
         for ds in dsets:

@@ -7,7 +7,8 @@
 python3 preprocessing.py
 
 dsets=(mimic-{08..20..3} ucmc-{18..24})
-dsets_cfg=$(printf '\\"%s\\",' "${dsets[@]}" | sed 's/,$//')
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
 config_home=./src/coreopsis/config
 
 # collate data
@@ -50,15 +51,15 @@ for ds in "${dsets[@]}"; do
 		--output-home ./output/${ds}
 done
 
-# # run federated learning
-# coreopsis run . standard \
-# 	--stream \
-# 	--run-config "
-# 				 'fed-strategy'='FedAvg'
-# 		         'output-home'='./output/fedavg10'
-# 		         'num-server-rounds'=10
-# 				 'datasets'='[$dsets_cfg]'
-# 				 "
+# run federated learning
+coreopsis run . standard \
+	--stream \
+	--run-config "
+				 'fed-strategy'='FedAvg'
+		         'output-home'='./output/fedavg10'
+		         'num-server-rounds'=10
+				 'datasets'='[$dsets_cfg]'
+				 "
 
 # # try momentum
 # coreopsis run . standard \
@@ -80,34 +81,24 @@ done
 # 				 'datasets'='[$dsets_cfg]'
 # 				 "
 
-# mdls=(
-# 	"fedavg10/checkpoint-2820"
-# 	"mimic-pre14/checkpoint-5037"
-# 	"mimic-post14/checkpoint-8412"
-# 	"ucmc-first/checkpoint-42300"
-# 	"all/checkpoint-46008"
-# )
+mdls=("${dsets[@]/%//mdl-cotorra}" fedavg10/coreopsis-round-10)
 
-# # extract reps for each dataset, for each model
-# for ds in "${dsets[@]}"; do
-# 	for mdl in "${mdls[@]}"; do
-# 		cotorra extract \
-# 			--extraction-config ${config_home}/extraction.yaml \
-# 			--processed-data-home ./processed/${ds} \
-# 			--model-home ./output/${mdl} \
-# 			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
-# 		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-# 	done
-# done
+# extract reps for each dataset, for each model
+for ds in "${dsets[@]}"; do
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic \
+			--verbose
+	done
+done
 
-# # extract reps for each dataset, for each model
-# for ds in "${dsets[@]}"; do
-# 	for mdl in "${mdls[@]}"; do
-# 		cotorra rep-based-score \
-# 			--scoring-config ${config_home}/scoring.yaml \
-# 			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
-# 			--model-home ./output/${mdl} \
-# 			--estimator logistic \
-# 			--verbose
-# 	done
-# done
+python3 postprocessing.py
