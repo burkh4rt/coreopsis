@@ -4,16 +4,15 @@
 gather stats on training sets
 """
 
-import fnmatch
 import importlib.resources as resources
 import pathlib
 
-import numpy as np
-import pandas as pd
 import polars as pl
 from omegaconf import OmegaConf
 
-pl.Config(set_fmt_float="mixed", float_precision=3)
+# from rich import print
+
+pl.Config(set_fmt_float="mixed", float_precision=3, tbl_rows=-1, tbl_cols=-1)
 
 hm = pathlib.Path("~/coreopsis").expanduser().resolve()
 
@@ -51,9 +50,13 @@ df_outcomes = pl.concat(
     ]
 )
 
-df_outcomes.transpose(
-    include_header=True, header_name="outcome", column_names="dataset"
-).to_pandas().to_latex(index=False, float_format="%.3f")
+print(
+    df_outcomes.transpose(
+        include_header=True, header_name="outcome", column_names="dataset"
+    ).sort("all")
+    # .to_pandas()
+    # .to_latex(index=False, float_format="%.3f")
+)
 
 df_demog = pl.concat(
     [
@@ -61,6 +64,7 @@ df_demog = pl.concat(
             list((hm / "processed" / ds).glob("*_for_inference.parquet"))
         ).select(
             pl.lit(ds).alias("dataset"),
+            pl.len().alias("count"),
             pl.col("age_at_admission").mean().alias("age_avg"),
             pl.col("age_at_admission").std().alias("age_std"),
             (pl.col("sex_category").str.to_lowercase() == "female")
@@ -86,4 +90,8 @@ df_demog = pl.concat(
     ]
 )
 
-df_demog.transpose(include_header=True, header_name="outcome", column_names="dataset")
+print(
+    df_demog.transpose(include_header=True, header_name="stat", column_names="dataset")
+    # .to_pandas()
+    # .to_latex(index=False, float_format="%.3f")
+)

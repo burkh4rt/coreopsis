@@ -61,6 +61,16 @@ coreopsis run . standard \
 				 'datasets'='[$dsets_cfg]'
 				 "
 
+# 3 rounds
+coreopsis run . standard \
+	--stream \
+	--run-config "
+				 'fed-strategy'='FedAvg'
+		         'output-home'='./output/fedavg3'
+		         'num-server-rounds'=3
+				 'datasets'='[$dsets_cfg]'
+				 "
+
 # # try momentum
 # coreopsis run . standard \
 # 	--stream \
@@ -81,7 +91,11 @@ coreopsis run . standard \
 # 				 'datasets'='[$dsets_cfg]'
 # 				 "
 
-mdls=("${dsets[@]/%//mdl-cotorra}" fedavg10/coreopsis-round-10)
+mdls=(
+	"${dsets[@]/%//mdl-cotorra}"
+	fedavg10/coreopsis-round-10
+	fedavg3/coreopsis-round-3
+)
 
 # extract reps for each dataset, for each model
 for ds in "${dsets[@]}"; do
@@ -98,6 +112,23 @@ for ds in "${dsets[@]}"; do
 			--model-home ./output/${mdl} \
 			--estimator logistic \
 			--verbose
+	done
+done
+
+for ds in "${dsets[@]}"; do
+	for mdl in "${mdls[@]}"; do
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV \
+			--verbose
+	done
+done
+
+for ds in "${dsets[@]}"; do
+	for mdl in "${mdls[@]}"; do
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
 	done
 done
 
