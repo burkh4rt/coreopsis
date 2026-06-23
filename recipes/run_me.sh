@@ -51,6 +51,25 @@ for ds in "${dsets[@]}"; do
 		--output-home ./output/${ds}
 done
 
+# train separate models on each dataset
+for ds in "${dsets[@]}"; do
+	cotorra train-private \
+		--training-config ${config_home}/training.yaml \
+		--processed-data-home ./processed/${ds} \
+		--output-home ./output/${ds}-p
+done
+
+# run federated learning
+coreopsis run . standard \
+	--stream \
+	--run-config "
+				 'fed-strategy'='FedAvg'
+		         'output-home'='./output/fedavg10'
+		         'num-server-rounds'=10
+				 'datasets'='[$dsets_cfg]'
+				 'diff-priv'=1
+				 "
+
 # run federated learning
 coreopsis run . standard \
 	--stream \
@@ -133,3 +152,21 @@ for ds in "${dsets[@]}"; do
 done
 
 python3 postprocessing.py
+
+mdls_p=("${dsets[@]/%/-p/mdl-cotorra}")
+for ds in "${dsets[@]}"; do
+	for mdl in "${mdls_p[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV \
+			--verbose
+	done
+done

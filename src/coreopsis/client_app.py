@@ -14,11 +14,11 @@ import time
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 from flwr.common.logger import log
-from transformers import TrainingArguments
 
 from coreopsis.task import get_weights, set_weights, unpack_context
 from cotorra.loader import Loader
-from cotorra.trainer import Trainer, TrainerWithCustomLoss
+from cotorra.trainer import Trainer
+from cotorra.trainer_dp import TrainerDP
 
 
 class FlowerClient(NumPyClient):
@@ -28,19 +28,12 @@ class FlowerClient(NumPyClient):
             self.context.node_config["partition-id"]
         ]
         training_cfg, processed_data_dir, output_home = unpack_context(context)
-        self.ct = Trainer(training_cfg, processed_data_dir / self.dset, output_home)
         self.loader = Loader(training_cfg, processed_data_dir / self.dset)
-
-        self.trainer = TrainerWithCustomLoss(
-            model=self.ct.model_init(),
-            data_collator=self.ct.collate_fn,
-            compute_loss_func=self.ct.loss,
-            train_dataset=self.ct.loader.get_train_data(),
-            eval_dataset=self.ct.loader.get_tuning_data(),
-            args=TrainingArguments(
-                output_dir=str(output_home), **self.ct.cfg.training_args
-            ),
+        self.is_private = bool(self.context.run_config.get("diff-priv", 0))
+        self.ct = (TrainerDP if self.is_private else Trainer)(
+            training_cfg, processed_data_dir / self.dset, output_home
         )
+        self.model = getattr(self.ct.trainer.model, "_module", self.ct.trainer.model)
 
         self.created = time.time()
         self.id = hashlib.md5(
@@ -51,13 +44,13 @@ class FlowerClient(NumPyClient):
         log(logging.INFO, f"Client {self.id} initialized (pid={self.pid})")
 
     def fit(self, parameters, config):
-        set_weights(self.trainer.model, parameters)
+        set_weights(self.model, parameters)
         num_rounds = int(self.context.run_config["num-server-rounds"])
         round_num = config.get("server_round", 1)
 
         progress = (round_num - 1) / max(num_rounds, 1)
-        self.trainer.args.learning_rate *= 0.5 * (1 + math.cos(math.pi * progress))
-        self.trainer.train_dataset = shard = self.trainer.train_dataset.shard(
+        self.ct.trainer.args.learning_rate *= 0.5 * (1 + math.cos(math.pi * progress))
+        self.ct.trainer.train_dataset = shard = self.ct.trainer.train_dataset.shard(
             num_shards=num_rounds, index=round_num - 1
         )
         log(
@@ -65,14 +58,14 @@ class FlowerClient(NumPyClient):
             f"training {self.id} (pid={self.pid}), round {round_num}/{num_rounds}, "
             f"{len(shard)} examples...",
         )
-        self.trainer.train()
-        return get_weights(self.trainer.model), len(shard), {}
+        self.ct.trainer.train()
+        return get_weights(self.model), len(shard), {}
 
     def evaluate(self, parameters, config):
-        set_weights(self.trainer.model, parameters)
-        loss = self.trainer.evaluate()["eval_loss"]
+        set_weights(self.model, parameters)
+        loss = self.ct.trainer.evaluate()["eval_loss"]
         log(logging.INFO, f"Validation {self.id} (pid={self.pid}): {loss=:.3f}")
-        return float(loss), len(self.trainer.eval_dataset), {}
+        return float(loss), len(self.ct.trainer.eval_dataset), {}
 
 
 def client_fn(context: Context):
