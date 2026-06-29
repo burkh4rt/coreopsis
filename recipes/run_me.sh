@@ -3,10 +3,23 @@
 # tmux new -s co || tmux a -t co
 # ln -s /mnt/bbj-lab/users/burkh4rt/data-raw ./data-raw
 
+for h in mimic ucmc nu; do
+	python coreopsis/recipes/run_clifpy.py \
+		--data_dir "./data-raw/${h}-2.1.0" \
+		--out_dir /scratch/$(whoami) \
+		--waterfall \
+		--convert_doses_continuous \
+		--convert_doses_intermittent
+
+	python coreopsis/recipes/run_sofa_scoring.py \
+		--data_dir "./data-raw/${h}-2.1.0" \
+		--out_dir /scratch/$(whoami)
+done
+
 . .venv/bin/activate
 python3 preprocessing.py
 
-dsets=(mimic-{08..20..3} ucmc-{18..24})
+dsets=(mimic-{08..20..3} ucmc-{18..24} nu-{18..24})
 dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 dsets_cfg=${dsets_cfg%,}
 config_home=./src/coreopsis/config
@@ -36,13 +49,6 @@ parallel --bar -j 4 cocoa winnow \
 	--processed-data-home ./processed/{} \
 	::: "${dsets[@]}"
 
-# create a combined dataset
-cocoa combine-datasets \
-	"${dsets[@]/#/./processed/}" \
-	--output-data-dir ./processed/all
-
-dsets+=('all')
-
 # train separate models on each dataset
 for ds in "${dsets[@]}"; do
 	cotorra train \
@@ -52,7 +58,7 @@ for ds in "${dsets[@]}"; do
 		2>&1 | tee ./logs/training-${ds}.log
 done
 
-# train separate models on each dataset
+# train private models on each dataset
 for ds in "${dsets[@]}"; do
 	cotorra train-private \
 		--training-config ${config_home}/training.yaml \
@@ -60,6 +66,13 @@ for ds in "${dsets[@]}"; do
 		--output-home ./output/${ds}-p \
 		2>&1 | tee ./logs/training-${ds}-p.log
 done
+
+# create a combined dataset
+cocoa combine-datasets \
+	"${dsets[@]/#/./processed/}" \
+	--output-data-dir ./processed/all
+
+dsets+=('all')
 
 # run federated learning
 coreopsis run . standard \
@@ -81,8 +94,8 @@ coreopsis run . standard \
 coreopsis run . standard \
 	--stream \
 	--run-config "
-				 'fed-strategy'='FedAvg'
-		         'output-home'='./output/fedavg10-ps'
+				 'fed-strategy'='DPFedAvgFixed'
+		         'output-home'='./output/dpfedavg10'
 		         'num-server-rounds'=10
 				 'datasets'='[$dsets_cfg]'
 				 'diff-priv-server'=1
@@ -116,11 +129,7 @@ coreopsis run . standard \
 # 				 'datasets'='[$dsets_cfg]'
 # 				 "
 
-mdls=(
-	"${dsets[@]/%/-p/mdl-cotorra}"
-	# fedavg10/coreopsis-round-10
-	# fedavg3/coreopsis-round-3
-)
+mdls=(fedavg10/coreopsis-round-10)
 
 # extract reps for each dataset, for each model
 for ds in "${dsets[@]}"; do

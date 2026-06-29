@@ -8,6 +8,7 @@ NB: new clients are created at the start of every round
 import hashlib
 import json
 import logging
+import math
 import time
 
 from flwr.client import ClientApp, NumPyClient
@@ -28,8 +29,6 @@ class FlowerClient(NumPyClient):
         training_cfg, processed_data_dir, output_home = unpack_context(context)
         self.loader = Loader(training_cfg, processed_data_dir / self.dset)
         self.ct = Trainer(training_cfg, processed_data_dir / self.dset, output_home)
-        self.ct.trainer.args.lr_scheduler_type = "constant"
-        self.init_lr = self.ct.trainer.args.learning_rate
 
         self.created = time.time()
         self.id = hashlib.md5(
@@ -44,9 +43,7 @@ class FlowerClient(NumPyClient):
         num_rounds = int(self.context.run_config["num-server-rounds"])
         round_num = config.get("server_round", 1)
         progress = (round_num - 1) / max(num_rounds, 1)
-        self.ct.trainer.args.learning_rate = (
-            self.init_lr * (1 - progress) + 1e-5 * progress
-        )
+        self.ct.trainer.args.learning_rate *= 0.5 * (1 + math.cos(math.pi * progress))
         self.ct.trainer.train_dataset = shard = self.ct.trainer.train_dataset.shard(
             num_shards=num_rounds, index=round_num - 1
         )
@@ -54,7 +51,7 @@ class FlowerClient(NumPyClient):
             logging.INFO,
             f"training {self.id} (pid={self.pid}), "
             f"round {round_num}/{num_rounds}, "
-            f"lr {self.ct.trainer.args.learning_rate},"
+            f"lr {self.ct.trainer.args.learning_rate}, "
             f"{len(shard)} examples...",
         )
         self.ct.trainer.train()

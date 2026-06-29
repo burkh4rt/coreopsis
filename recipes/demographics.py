@@ -16,11 +16,9 @@ pl.Config(set_fmt_float="mixed", float_precision=3, tbl_rows=-1, tbl_cols=-1)
 
 hm = pathlib.Path("~/coreopsis").expanduser().resolve()
 
-dsets = (
-    [f"mimic-{y:02d}" for y in range(8, 21, 3)]
-    + [f"ucmc-{y}" for y in range(18, 25)]
-    + ["all"]
-)
+dsets = [f"mimic-{y:02d}" for y in range(8, 21, 3)] + [
+    f"{h}-{y}" for h in ("ucmc", "nu") for y in range(18, 25)
+]
 
 pt_cols = OmegaConf.load(resources.files("coreopsis.config") / "collation.yaml")[
     "pass_through_columns"

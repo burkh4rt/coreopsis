@@ -20,11 +20,7 @@ hm = pathlib.Path("~/coreopsis").expanduser().resolve()
 dsets = [f"mimic-{y:02d}" for y in range(8, 21, 3)] + [
     f"ucmc-{y}" for y in range(18, 25)
 ]
-mdls = [f"mdl-{ds}-p" for ds in dsets] + [
-    "mdl-all-p",
-    "mdl-fedavg10",
-    "mdl-fedavg10-ps",
-]
+mdls = ["mdl-all-p", "mdl-fedavg10"]  # + [f"mdl-{ds}-p" for ds in dsets]
 grokked_outcome_tokens = [
     x
     for x in OmegaConf.load(

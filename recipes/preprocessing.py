@@ -65,6 +65,7 @@ partition UCMC & Northwestern by admission year
 for h in ("ucmc", "nu"):
     df = (
         pl.read_parquet(data_raw / f"{h}-2.1.0" / "clif_hospitalization.parquet")
+        .drop("__index_level_0__", strict=False)
         .sort(pl.col("admission_dttm"))
         .group_by("patient_id")
         .first()
@@ -82,7 +83,9 @@ for h in ("ucmc", "nu"):
         grp = df.filter(pl.col("admission_dttm").dt.year() == v)
         for f in (data_raw / f"{h}-2.1.0").glob("*.parquet"):
             try:  # hospitalization level
-                pl.scan_parquet(f).cast({"hospitalization_id": str}).join(
+                pl.scan_parquet(f).drop("__index_level_0__", strict=False).cast(
+                    {"hospitalization_id": str}
+                ).join(
                     grp.select("hospitalization_id").lazy(),
                     on="hospitalization_id",
                     validate="m:1",
@@ -90,7 +93,7 @@ for h in ("ucmc", "nu"):
                 print(f"Processed {f.name} at hospitalizion-level.")
             except pl.exceptions.ColumnNotFoundError:  # patient level
                 try:
-                    pl.scan_parquet(f).join(
+                    pl.scan_parquet(f).drop("__index_level_0__", strict=False).join(
                         grp.select("patient_id").lazy(), on="patient_id", validate="m:1"
                     ).sink_parquet(data_raw / f"{h}-{k}" / f.name)
                     print(f"Processed {f.name} at patient-level.")
