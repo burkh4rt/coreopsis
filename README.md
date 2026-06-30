@@ -219,11 +219,17 @@ ruff check . --fix
 
 Send to bbj-lab1:
 ```
+for d in data-raw output processed; do
+	ln -s /mnt/bbj-lab/users/burkh4rt/$d $d
+done
+```
+```
 rsync -avht \
  --exclude "output" \
- --exclude "./processed/" \
- --exclude "logs/" \
- --exclude "wandb/" \
+ --exclude "processed" \
+ --exclude "data-raw" \
+ --exclude "logs" \
+ --exclude "wandb" \
  --exclude ".venv/" \
  --exclude ".idea/" \
  ~/Documents/chicago/coreopsis \
@@ -232,11 +238,17 @@ rsync -avht \
 
 Send to randi:
 ```
+for d in data-raw output processed; do
+	ln -s /gpfs/data/bbj-lab/users/burkh4rt/$d $d
+done
+```
+```
 rsync -avht \
  --exclude "output" \
- --exclude "./processed/" \
- --exclude "logs/" \
- --exclude "wandb/" \
+ --exclude "processed" \
+ --exclude "data-raw" \
+ --exclude "logs" \
+ --exclude "wandb" \
  --exclude ".venv/" \
  --exclude ".idea/" \
  ~/Documents/chicago/coreopsis \

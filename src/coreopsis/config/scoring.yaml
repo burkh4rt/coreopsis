@@ -6,7 +6,6 @@ tokens_of_interest: &tois
   - XFR-IN//icu
   - RESP//imv
   - DSCG//expired
-  - ASMT//cam_total_yes
   - LABEL//*
 
 score:
