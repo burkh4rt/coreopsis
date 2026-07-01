@@ -73,6 +73,22 @@ coreopsis run . standard \
 	--stream \
 	--run-config "
 				 'fed-strategy'='FedAvg'
+				 'output-home'='./output/fedavg10'
+				 'num-server-rounds'=10
+				 'datasets'='[$dsets_cfg]'
+				 " \
+	--federation-config "
+						options.num-supernodes=$((${#dsets[@]} - 1))
+						options.backend.client-resources.num-cpus=1
+						options.backend.client-resources.num-gpus=1
+						" \
+	2>&1 | tee ./logs/training-fedavg10.log
+
+# run federated learning with client-side privacy
+coreopsis run . standard \
+	--stream \
+	--run-config "
+				 'fed-strategy'='FedAvg'
 				 'output-home'='./output/fedavg10-p'
 				 'num-server-rounds'=10
 				 'datasets'='[$dsets_cfg]'
@@ -82,7 +98,8 @@ coreopsis run . standard \
 						options.num-supernodes=$((${#dsets[@]} - 1))
 						options.backend.client-resources.num-cpus=1
 						options.backend.client-resources.num-gpus=1
-						"
+						" \
+	2>&1 | tee ./logs/training-fedavg10-p.log
 
 mdls=(
 	${dsets[@]/%//mdl-cotorra}
@@ -103,9 +120,8 @@ for ds in "${dsets[@]}"; do
 			--scoring-config ${config_home}/scoring.yaml \
 			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
 			--model-home ./output/${mdl} \
-			--estimator logistic \
-			--verbose
+			--estimator logistic-CV
 	done
 done
 
-python3 postprocessing.py
+python3 postprocessing.py 2>&1 | tee ./logs/scoring.log

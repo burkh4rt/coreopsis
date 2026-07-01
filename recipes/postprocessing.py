@@ -6,6 +6,7 @@ collect results
 
 import fnmatch
 import importlib.resources as resources
+import os
 import pathlib
 
 import numpy as np
@@ -15,12 +16,17 @@ from omegaconf import OmegaConf
 
 from cotorra.util import bootstrap_ci
 
-hm = pathlib.Path("~/coreopsis").expanduser().resolve()
+hm = (
+    pathlib.Path("/gpfs/data" if os.uname().nodename.startswith("cri") else "/mnt")
+    / "bbj-lab/users/burkh4rt"
+)
 
-dsets = [f"mimic-{y:02d}" for y in range(8, 21, 3)] + [
-    f"ucmc-{y}" for y in range(18, 25)
-]
-mdls = ["mdl-all-p", "mdl-fedavg10"]  # + [f"mdl-{ds}-p" for ds in dsets]
+dsets = ("mimic-icu", "ucmc-icu", "nu-icu", "all")
+
+
+mdls = (
+    [f"mdl-{ds}" for ds in dsets] + [f"mdl-{ds}-p" for ds in dsets] + ["mdl-fedavg10-p"]
+)
 grokked_outcome_tokens = [
     x
     for x in OmegaConf.load(
@@ -34,86 +40,27 @@ grokked_outcome_tokens = [
     )
 ]
 
-for met in ["roc_auc"]:  # "brier", "pr_auc"
-    print(f"=== {met} ===")
-    for tt in grokked_outcome_tokens:
-        print(f"--- {tt} ---")
-        results = pd.DataFrame(columns=dsets, index=pd.Index(mdls, name="models"))
-        for ds in dsets:
-            for mdl in mdls:
-                df = pl.read_parquet(hm / "processed" / ds / mdl / "scores-*.parquet")
-                y_qual, y_true, y_score = (
-                    df.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score")
-                    .to_numpy()
-                    .T
-                )
-                results.loc[mdl, ds] = (
-                    bootstrap_ci(
-                        y_true[y_qual.astype(bool)],
-                        np.nan_to_num(y_score)[y_qual.astype(bool)],
-                        n_samples=1_00,
-                    )[met]
-                    .mean()
-                    .round(3)
-                )  # add  to drop CI's
-        print(results)
+
+def get_mdl_ds_res(ds, mdl, tt):
+    df = pl.read_parquet(hm / "processed" / ds / mdl / "scores-*.parquet")
+    y_qual, y_true, y_score = (
+        df.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score").to_numpy().T
+    )
+    return (
+        bootstrap_ci(
+            y_true[y_qual.astype(bool)],
+            np.nan_to_num(y_score)[y_qual.astype(bool)],
+            n_samples=1_00,
+        )["roc_auc"]
+        .mean()
+        .round(3)
+    )
 
 
-# mimic_dsets = [f"mimic-{y:02d}" for y in range(8, 21, 3)]
-# results = pd.DataFrame(
-#     columns=grokked_outcome_tokens, index=pd.Index(mdls, name="models")
-# )
-# for mdl in mdls:
-#     df = pl.read_parquet(
-#         [hm / "processed" / ds / mdl / "scores-*.parquet" for ds in mimic_dsets]
-#     )
-#     for tt in grokked_outcome_tokens:
-#         y_qual, y_true, y_score = (
-#             df.filter(
-#                 pl.col("race_category").str.to_lowercase().str.split(by=" ").list[0]
-#                 == "black"
-#             )
-#             .select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score")
-#             .to_numpy()
-#             .T
-#         )
-#         results.loc[mdl, tt] = (
-#             bootstrap_ci(
-#                 y_true[y_qual.astype(bool)],
-#                 np.nan_to_num(y_score)[y_qual.astype(bool)],
-#                 n_samples=1_000,
-#             )[met]
-#             .mean()
-#             .round(3)
-#         )
-# print(results)
-
-
-# ucmc_dsets = [f"ucmc-{y}" for y in range(18, 25)]
-# results = pd.DataFrame(
-#     columns=grokked_outcome_tokens, index=pd.Index(mdls, name="models")
-# )
-# for mdl in mdls:
-#     df = pl.read_parquet(
-#         [hm / "processed" / ds / mdl / "scores-*.parquet" for ds in ucmc_dsets]
-#     )
-#     for tt in grokked_outcome_tokens:
-#         y_qual, y_true, y_score = (
-#             df.filter(
-#                 pl.col("race_category").str.to_lowercase().str.split(by=" ").list[0]
-#                 == "white"
-#             )
-#             .select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score")
-#             .to_numpy()
-#             .T
-#         )
-#         results.loc[mdl, tt] = (
-#             bootstrap_ci(
-#                 y_true[y_qual.astype(bool)],
-#                 np.nan_to_num(y_score)[y_qual.astype(bool)],
-#                 n_samples=1_000,
-#             )[met]
-#             .mean()
-#             .round(3)
-#         )
-# print(results)
+for tt in grokked_outcome_tokens:
+    print(f"--- {tt} ---")
+    results = pd.DataFrame(columns=dsets, index=pd.Index(mdls, name="models"))
+    for ds in dsets:
+        for mdl in mdls:
+            results.loc[mdl, ds] = get_mdl_ds_res(ds, mdl, tt)
+    print(results)
