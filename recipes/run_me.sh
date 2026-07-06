@@ -10,16 +10,19 @@ for h in mimic ucmc nu; do
 		--out_dir /scratch/$(whoami) \
 		--waterfall \
 		--convert_doses_continuous \
-		--convert_doses_intermittent
+		--convert_doses_intermittent \
+		2>&1 | tee ./logs/clifpy-${h}.log
 
 	python recipes/run_sofa_scoring.py \
 		--data_dir "./data-raw/${h}-2.1.0" \
-		--out_dir /scratch/$(whoami)
+		--out_dir /scratch/$(whoami) \
+		2>&1 | tee ./logs/sofa-${h}.log
 done
 
 python3 preprocessing.py
 
 dsets=(mimic-icu ucmc-icu nu-icu)
+nsets=${#dsets[@]}
 dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 dsets_cfg=${dsets_cfg%,}
 config_home=./src/coreopsis/config
@@ -69,59 +72,36 @@ for ds in "${dsets[@]}"; do
 done
 
 # run federated learning
-coreopsis run . standard \
-	--stream \
-	--run-config "
-				 'fed-strategy'='FedAvg'
-				 'output-home'='./output/fedavg10'
-				 'num-server-rounds'=10
-				 'datasets'='[$dsets_cfg]'
-				 " \
-	--federation-config "
-						options.num-supernodes=$((${#dsets[@]} - 1))
-						options.backend.client-resources.num-cpus=1
-						options.backend.client-resources.num-gpus=1
-						" \
-	2>&1 | tee ./logs/training-fedavg10.log
+sbatch --export=ALL,dsets_cfg="$dsets_cfg",nsets=$nsets \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
 
 # run federated learning with client-side privacy
-coreopsis run . standard \
-	--stream \
-	--run-config "
-				 'fed-strategy'='FedAvg'
-				 'output-home'='./output/fedavg10-p'
-				 'num-server-rounds'=10
-				 'datasets'='[$dsets_cfg]'
-				 'diff-priv-client'=1
-				 " \
-	--federation-config "
-						options.num-supernodes=$((${#dsets[@]} - 1))
-						options.backend.client-resources.num-cpus=1
-						options.backend.client-resources.num-gpus=1
-						" \
-	2>&1 | tee ./logs/training-fedavg10-p.log
+sbatch --export=ALL,private=1,dsets_cfg="$dsets_cfg",nsets=$nsets \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
 
-mdls=(
-	${dsets[@]/%//mdl-cotorra}
-	${dsets[@]/%/-p/mdl-cotorra}
-	fedavg10-p/checkpoint-19770
-)
+# mdls=(
+# 	${dsets[@]/%//mdl-cotorra}
+# 	${dsets[@]/%/-p/mdl-cotorra}
+# 	fedavg10-p/checkpoint-19770
+# )
 
-# extract reps for each dataset, for each model
-for ds in "${dsets[@]}"; do
-	for mdl in "${mdls[@]}"; do
-		cotorra extract \
-			--extraction-config ${config_home}/extraction.yaml \
-			--processed-data-home ./processed/${ds} \
-			--model-home ./output/${mdl} \
-			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cotorra rep-based-score \
-			--scoring-config ${config_home}/scoring.yaml \
-			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
-			--model-home ./output/${mdl} \
-			--estimator logistic-CV
-	done
-done
+# # extract reps for each dataset, for each model
+# for ds in "${dsets[@]}"; do
+# 	for mdl in "${mdls[@]}"; do
+# 		cotorra extract \
+# 			--extraction-config ${config_home}/extraction.yaml \
+# 			--processed-data-home ./processed/${ds} \
+# 			--model-home ./output/${mdl} \
+# 			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+# 		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+# 		cotorra rep-based-score \
+# 			--scoring-config ${config_home}/scoring.yaml \
+# 			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+# 			--model-home ./output/${mdl} \
+# 			--estimator logistic-CV
+# 	done
+# done
 
-python3 postprocessing.py 2>&1 | tee ./logs/scoring.log
+# python3 postprocessing.py 2>&1 | tee ./logs/scoring.log

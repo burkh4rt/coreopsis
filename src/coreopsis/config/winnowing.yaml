@@ -11,8 +11,6 @@ threshold:
   duration_s: !!int 86400 # 24h
   # first_occurrence: XFR-IN//icu
 
-horizon_after_threshold_s: !!int 864000 # 10d outcome window after prediction threshold
-
 splits: #select which splits to prepare
   - train
   - tuning

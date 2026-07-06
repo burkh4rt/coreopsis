@@ -12,7 +12,7 @@
     dependencies = [
         "accelerate==0.34.2",
         "click<8.2",
-        "clifpy",
+        "clifpy @ git+https://github.com/burkh4rt/clifpy.git@utc-fix",
         "cocoa @ git+https://github.com/burkh4rt/cocoa.git",
         "cotorra @ git+https://github.com/burkh4rt/cotorra.git",
         "flwr[simulation]==1.18.0",
