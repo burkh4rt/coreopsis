@@ -4,6 +4,13 @@
 
 source .venv/bin/activate
 
+dsets=(mimic-icu ucmc-icu nu-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+config_home=./src/coreopsis/config
+export dsets nsets dsets_cfg config_home
+
 for h in mimic ucmc nu; do
 	python recipes/run_clifpy.py \
 		--data_dir "./data-raw/${h}-2.1.0" \
@@ -19,14 +26,7 @@ for h in mimic ucmc nu; do
 		2>&1 | tee ./logs/sofa-${h}.log
 done
 
-python3 preprocessing.py
-
-dsets=(mimic-icu ucmc-icu nu-icu)
-nsets=${#dsets[@]}
-dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-dsets_cfg=${dsets_cfg%,}
-config_home=./src/coreopsis/config
-export dsets nsets dsets_cfg config_home
+python3 recipes/preprocessing.py
 
 # collate data
 parallel --bar cocoa collate \
@@ -106,4 +106,4 @@ for ds in "${dsets[@]}"; do
 	done
 done
 
-# python3 postprocessing.py 2>&1 | tee ./logs/scoring.log
+python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
