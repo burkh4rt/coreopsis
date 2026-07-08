@@ -30,7 +30,6 @@ labels = [
     c[:-5] for c, t in df.schema.items() if c.endswith("_past") and t == pl.Boolean
 ]
 
-
 df_outcomes = pl.concat(
     [
         pl.read_parquet(list((hm / "processed" / ds).glob("*_for_inference.parquet")))

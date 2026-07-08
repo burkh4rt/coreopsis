@@ -65,17 +65,6 @@ if args.waterfall:
 
 
 if args.convert_doses_continuous:
-    # opts = {"data_directory": str(data_dir), "timezone": args.tz, "filetype": "parquet"}
-    # mac_df = cpy.MedicationAdminContinuous.from_file(**opts).df
-    #
-    # preferred_units = dict(
-    #     pl.from_pandas(mac_df)
-    #     .group_by("med_category")
-    #     .agg(pl.col("med_dose_unit").mode().first())
-    #     .sort("med_category")
-    #     .rows()
-    # )
-
     preferred_units = {
         "acetaminophen": "mg/min",
         "albumin_infusion": "ml/hr",
@@ -143,17 +132,6 @@ if args.convert_doses_continuous:
     )
 
 if args.convert_doses_intermittent:
-    # opts = {"data_directory": str(data_dir), "timezone": args.tz, "filetype": "parquet"}
-    # mai_df = cpy.MedicationAdminIntermittent.from_file(**opts).df
-    #
-    # preferred_units = dict(
-    #     pl.from_pandas(mai_df)
-    #     .group_by("med_category")
-    #     .agg(pl.col("med_dose_unit").mode().first())
-    #     .sort("med_category")
-    #     .rows()
-    # )
-
     preferred_units = {
         "acetaminophen": "mg",
         "acyclovir": "dose",
