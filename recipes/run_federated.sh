@@ -5,7 +5,7 @@
 #SBATCH --partition=gpuq
 #SBATCH --gres=gpu:3
 #SBATCH --qos=nonpreemptible
-#SBATCH --time=4:00:00
+#SBATCH --time=12:00:00
 
 source ~/.bashrc
 source .venv/bin/activate
@@ -19,6 +19,8 @@ if [[ -v private ]]; then
 				 'num-server-rounds'=10
 				 'datasets'='[$dsets_cfg]'
 				 'diff-priv-client'=1
+				 'max-grad-norm'=${max_grad_norm:-1.0}
+        		 'noise-multiplier'=${noise_multiplier:-1.5}
 				 " \
 		--federation-config "
 						options.num-supernodes=${nsets}

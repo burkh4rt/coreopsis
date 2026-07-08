@@ -5,7 +5,16 @@ max_seq_len: !!int &max_len 4096
 tokens_of_interest: &tois
   - RESP//imv
   - DSCG//expired
-  - LABEL//*
+  - LABEL//anemia_init
+  - LABEL//crrt_init
+  - LABEL//hyperk_init
+  - LABEL//hypok_init
+  - LABEL//hyperna_init
+  - LABEL//hypona_init
+  - LABEL//hypertension_init
+  - LABEL//hypotension_init
+  - LABEL//pressor_init
+  - LABEL//tachy_init
 
 score:
   max_len: *max_len

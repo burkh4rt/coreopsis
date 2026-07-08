@@ -20,6 +20,7 @@
         "protobuf==4.25.3",
         "ray==2.31.0",
         "rich",
+        "scikit-learn",
         "torch",
         "transformers==4.45.2",
         "typer==0.12.5",
