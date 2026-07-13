@@ -11,6 +11,7 @@ dsets_cfg=${dsets_cfg%,}
 config_home=./src/coreopsis/config
 export dsets nsets dsets_cfg config_home
 
+# harmonize medicines / respiratory data / sofa scoring with clifpy
 for h in mimic ucmc nu; do
 	python recipes/run_clifpy.py \
 		--data_dir "./data-raw/${h}-2.1.0" \
@@ -78,14 +79,43 @@ sbatch --export=ALL \
 	recipes/run_federated.sh
 
 # run federated learning with client-side privacy
-sbatch --export=ALL,private=1 \
+sbatch --export=ALL,private_clients=1 \
 	--gres=gpu:$nsets \
 	recipes/run_federated.sh
 
+# federated mimic + chicago
+dsets=(mimic-icu ucmc-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home='./output/fedavg10-mc'
+export dsets nsets dsets_cfg
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
+
+# federated mimic + nw
+dsets=(mimic-icu nu-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home='./output/fedavg10-mn'
+export dsets nsets dsets_cfg
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
+
+# mdls=(
+# 	${dsets[@]/%//mdl-cotorra}
+# 	${dsets[@]/%/-p/mdl-cotorra}
+# 	fedavg10/coreopsis-round-10
+# 	fedavg10-p/coreopsis-round-10
+# )
+
 mdls=(
-	${dsets[@]/%//mdl-cotorra}
-	${dsets[@]/%/-p/mdl-cotorra}
-	fedavg10/coreopsis-round-10
+	${dsets[@]/%/-10/mdl-cotorra}
+	fedavg10-mc/coreopsis-round-10
+	fedavg10-mn/coreopsis-round-10
 	fedavg10-p/coreopsis-round-10
 )
 

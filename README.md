@@ -1,5 +1,5 @@
 <p align="center">
-<img src="img/coreopsis.png" alt="cocoa bean" width="400" style="display: block;
+<img src="img/coreopsis.png" alt="coreopsis flower" width="400" style="display: block;
 margin: 0 auto; -webkit-mask-image: radial-gradient(
     ellipse at center,
     rgba(0,0,0,1) 50%,
@@ -195,7 +195,7 @@ ruff check . --fix
 
 Send to bbj-lab1:
 ```
-for d in data-raw output processed; do
+for d in data-raw processed; do
 	ln -s /mnt/bbj-lab/users/burkh4rt/$d $d
 done
 ```
