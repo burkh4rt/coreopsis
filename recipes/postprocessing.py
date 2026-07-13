@@ -31,11 +31,11 @@ hm = (
     / "bbj-lab/users/burkh4rt"
 )
 
-dsets = ("mimic-icu", "ucmc-icu", "nu-icu", "all")
+dsets = ("mimic-icu", "ucmc-icu", "nu-icu")
 
 mdls = (
-    [f"mdl-{ds}" for ds in dsets]
-    + ["mdl-fedavg10"]
+    [f"mdl-{ds}-10" for ds in dsets]
+    + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn"]
     + [f"mdl-{ds}-p" for ds in dsets]
     + ["mdl-fedavg10-p"]
 )
@@ -60,7 +60,8 @@ def get_stacked_results(ds, mdls_to_stack):
                 hm / "processed" / ds / mdl / "scores-rep-based-*.parquet"
             ).with_columns(mdl=pl.lit(mdl))
             for mdl in mdls_to_stack
-        ]
+        ],
+        how="diagonal",
     )
     res = dict()
     for tt in grokked_outcome_tokens:
@@ -112,7 +113,9 @@ def get_results(ds, mdl):
 
 stacked = {
     ds: get_stacked_results(
-        ds, mdls_to_stack=[f"mdl-{ds}" for ds in dsets[:-1]] + ["mdl-fedavg10"]
+        ds,
+        mdls_to_stack=[f"mdl-{ds}-10" for ds in dsets[:-1]]
+        + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn"],
     )
     for ds in dsets
 }
@@ -130,8 +133,8 @@ for tt in grokked_outcome_tokens:
         columns=dsets,
         index=pd.Index(
             (
-                [f"mdl-{ds}" for ds in dsets]
-                + ["mdl-fedavg10"]
+                [f"mdl-{ds}-10" for ds in dsets]
+                + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn"]
                 + ["stacked"]
                 + [f"mdl-{ds}-p" for ds in dsets]
                 + ["mdl-fedavg10-p"]

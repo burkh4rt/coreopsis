@@ -2,6 +2,9 @@
 
 # tmux new -s co || tmux a -t co
 
+# "[Errno 11] Resource temporarily unavailable" typically indicates a mount problem
+# try: sudo umount /mnt/bbj-lab && sudo mount /mnt/bbj-lab
+
 source .venv/bin/activate
 
 dsets=(mimic-icu ucmc-icu nu-icu)
@@ -105,14 +108,12 @@ sbatch --export=ALL \
 	--gres=gpu:$nsets \
 	recipes/run_federated.sh
 
-# mdls=(
-# 	${dsets[@]/%//mdl-cotorra}
-# 	${dsets[@]/%/-p/mdl-cotorra}
-# 	fedavg10/coreopsis-round-10
-# 	fedavg10-p/coreopsis-round-10
-# )
-
+dsets=(mimic-icu ucmc-icu nu-icu)
 mdls=(
+	${dsets[@]/%//mdl-cotorra}
+	${dsets[@]/%/-p/mdl-cotorra}
+	fedavg10/coreopsis-round-10
+	fedavg10-p/coreopsis-round-10
 	${dsets[@]/%/-10/mdl-cotorra}
 	fedavg10-mc/coreopsis-round-10
 	fedavg10-mn/coreopsis-round-10
