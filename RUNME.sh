@@ -92,7 +92,7 @@ nsets=${#dsets[@]}
 dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 dsets_cfg=${dsets_cfg%,}
 output_home='./output/fedavg10-mc'
-export dsets nsets dsets_cfg
+export dsets nsets dsets_cfg output_home
 sbatch --export=ALL \
 	--gres=gpu:$nsets \
 	recipes/run_federated.sh
@@ -103,22 +103,33 @@ nsets=${#dsets[@]}
 dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 dsets_cfg=${dsets_cfg%,}
 output_home='./output/fedavg10-mn'
-export dsets nsets dsets_cfg
+export dsets nsets dsets_cfg output_home
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
+
+# federated nw + chicago
+dsets=(ucmc-icu nu-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home='./output/fedavg10-cn'
+export dsets nsets dsets_cfg output_home
 sbatch --export=ALL \
 	--gres=gpu:$nsets \
 	recipes/run_federated.sh
 
 dsets=(mimic-icu ucmc-icu nu-icu)
 mdls=(
-	${dsets[@]/%//mdl-cotorra}
-	${dsets[@]/%/-p/mdl-cotorra}
-	fedavg10/coreopsis-round-10
-	fedavg10-p/coreopsis-round-10
-	${dsets[@]/%/-10/mdl-cotorra}
+	fedavg10/coreopsis-round-{1..10}
+	mimic-icu-{1..10}/mdl-cotorra
+	nu-icu-{1..10}/mdl-cotorra
+	ucmc-icu-{1..10}/mdl-cotorra
 	fedavg10-mc/coreopsis-round-10
 	fedavg10-mn/coreopsis-round-10
-	fedavg10-p/coreopsis-round-10
 )
+
+mdls=(fedavg10-cn/coreopsis-round-10)
 
 # extract reps for each dataset, for each model
 for ds in "${dsets[@]}"; do

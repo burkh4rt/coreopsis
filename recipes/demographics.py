@@ -42,6 +42,10 @@ df_outcomes = pl.concat(
         .select(
             [pl.lit(ds).alias("dataset")]
             + [pl.col(c).mean().alias(c.split("//")[-1]) for c in labels]
+            + [
+                pl.col(f"{c}_future").mean().alias(c.split("//")[-1] + "_future")
+                for c in labels
+            ]
         )
         for ds in dsets
     ]
@@ -55,6 +59,8 @@ print(
     # .to_latex(index=False, float_format="%.3f")
 )
 
+languages = ["english", "spanish"]
+races = ["white", "black or african american", "asian"]
 df_demog = pl.concat(
     [
         pl.read_parquet(
@@ -71,27 +77,32 @@ df_demog = pl.concat(
             .mean()
             .alias("freq_hispanic"),
             *[
-                (pl.col("language_category").str.to_lowercase() == s)
-                .mean()
-                .alias(f"freq_{s}_spk")
-                for s in ("english", "spanish")
-            ],
-            *[
                 (pl.col("race_category").str.to_lowercase() == s)
                 .mean()
                 .alias(f"freq_{s.split()[0]}")
-                for s in ("white", "black or african american", "asian", "other")
+                for s in races
             ],
+            (~pl.col("race_category").str.to_lowercase().is_in(races))
+            .mean()
+            .alias("freq_other"),
+            *[
+                (pl.col("language_category").str.to_lowercase() == s)
+                .mean()
+                .alias(f"freq_{s}_spk")
+                for s in languages
+            ],
+            (
+                (~pl.col("language_category").str.to_lowercase().is_in(languages))
+                .mean()
+                .alias("freq_other_spk")
+            ),
         )
         for ds in dsets
     ]
 )
 
-print(
-    df_demog.transpose(include_header=True, header_name="stat", column_names="dataset")
-    # .to_pandas()
-    # .to_latex(index=False, float_format="%.3f")
-)
+# .transpose(include_header=True, header_name="stat", column_names="dataset")
+print(df_demog.to_pandas().to_latex(index=False, float_format="%.3f"))
 
 df_tkns = pl.concat(
     [

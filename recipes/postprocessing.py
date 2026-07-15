@@ -35,9 +35,8 @@ dsets = ("mimic-icu", "ucmc-icu", "nu-icu")
 
 mdls = (
     [f"mdl-{ds}-10" for ds in dsets]
-    + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn"]
-    + [f"mdl-{ds}-p" for ds in dsets]
-    + ["mdl-fedavg10-p"]
+    + [f"mdl-{ds}-{i}" for ds in dsets for i in range(1, 10)]
+    + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn", "mdl-fedavg10-cn"]
 )
 grokked_outcome_tokens = [
     x
@@ -119,33 +118,15 @@ stacked = {
     )
     for ds in dsets
 }
-stacked_p = {
-    ds: get_stacked_results(
-        ds, mdls_to_stack=[f"mdl-{ds}-p" for ds in dsets[:-1]] + ["mdl-fedavg10-p"]
-    )
-    for ds in dsets
-}
 res = {(ds, mdl): get_results(ds, mdl) for ds in dsets for mdl in mdls}
 
 for tt in grokked_outcome_tokens:
     print(f"--- {tt} ---")
     results = pd.DataFrame(
-        columns=dsets,
-        index=pd.Index(
-            (
-                [f"mdl-{ds}-10" for ds in dsets]
-                + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn"]
-                + ["stacked"]
-                + [f"mdl-{ds}-p" for ds in dsets]
-                + ["mdl-fedavg10-p"]
-                + ["stacked-p"]
-            ),
-            name="models",
-        ),
+        columns=dsets, index=pd.Index((mdls + ["stacked"]), name="models")
     )
     for ds in dsets:
         for mdl in mdls:
             results.loc[mdl, ds] = res[ds, mdl][tt]
             results.loc["stacked", ds] = stacked[ds][tt]
-            results.loc["stacked-p", ds] = stacked_p[ds][tt]
     print(results)

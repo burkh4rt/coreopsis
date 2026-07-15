@@ -10,14 +10,7 @@
 source ~/.bashrc
 source .venv/bin/activate
 
-if [[ -v private ]]; then
-	cotorra train-private \
-		--training-config ${config_home}/training.yaml \
-		--processed-data-home ./processed/${ds} \
-		--output-home ./output/${ds}-p
-else
-	cotorra train \
-		--training-config ${config_home}/training.yaml \
-		--processed-data-home ./processed/${ds} \
-		--output-home ./output/${ds}-10
-fi
+cotorra train \
+	--training-config ${config_home}/training.yaml \
+	--processed-data-home ./processed/${ds} \
+	--output-home ./output/${ds}-10
