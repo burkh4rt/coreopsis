@@ -123,3 +123,13 @@ df_tkns = pl.concat(
 )
 
 print(df_tkns)
+
+
+vocab = OmegaConf.load(hm / "processed" / dsets[0] / "tokenizer.yaml").lookup.keys()
+token_types = (
+    pl.Series(name="vocab", values=vocab)
+    .str.split("//")
+    .list.first()
+    .value_counts()
+    .sort("vocab")
+)

@@ -33,11 +33,13 @@ hm = (
 
 dsets = ("mimic-icu", "ucmc-icu", "nu-icu")
 
-mdls = (
-    [f"mdl-{ds}-10" for ds in dsets]
-    + [f"mdl-{ds}-{i}" for ds in dsets for i in range(1, 10)]
-    + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn", "mdl-fedavg10-cn"]
-)
+mdls = [f"mdl-{ds}-{i}" for ds in dsets for i in range(1, 11)] + [
+    "mdl-fedavg10",
+    "mdl-fedavg10-mc",
+    "mdl-fedavg10-mn",
+    "mdl-fedavg10-cn",
+    "mdl-all",
+]
 grokked_outcome_tokens = [
     x
     for x in OmegaConf.load(
@@ -95,7 +97,7 @@ def get_stacked_results(ds, mdls_to_stack):
     return res
 
 
-def get_results(ds, mdl):
+def get_results(ds, mdl, metric: str = "roc_auc_score"):
     df = pl.read_parquet(hm / "processed" / ds / mdl / "scores-rep-based-*.parquet")
     res = dict()
     for tt in grokked_outcome_tokens:
@@ -104,29 +106,41 @@ def get_results(ds, mdl):
             .to_numpy()
             .T
         )
-        res[tt] = skl_mets.roc_auc_score(
-            y_true[y_qual.astype(bool)], np.nan_to_num(y_score)[y_qual.astype(bool)]
-        )
+        yt = y_true[y_qual.astype(bool)]
+        ys = np.nan_to_num(y_score)[y_qual.astype(bool)]
+        if metric == "pr_auc_score":
+            precs, recs, _ = skl_mets.precision_recall_curve(
+                yt, np.round(ys, decimals=4), drop_intermediate=True
+            )
+            res[tt] = skl_mets.auc(recs, precs)
+        else:
+            res[tt] = getattr(skl_mets, metric)(yt, ys)
     return res
 
 
-stacked = {
-    ds: get_stacked_results(
-        ds,
-        mdls_to_stack=[f"mdl-{ds}-10" for ds in dsets[:-1]]
-        + ["mdl-fedavg10", "mdl-fedavg10-mc", "mdl-fedavg10-mn"],
-    )
-    for ds in dsets
-}
-res = {(ds, mdl): get_results(ds, mdl) for ds in dsets for mdl in mdls}
+res = {(ds, mdl): get_results(ds, mdl, "pr_auc_score") for ds in dsets for mdl in mdls}
 
+results = pd.DataFrame(
+    columns=dsets,
+    index=pd.MultiIndex.from_product(
+        (grokked_outcome_tokens, mdls), names=("token", "models")
+    ),
+)
 for tt in grokked_outcome_tokens:
-    print(f"--- {tt} ---")
-    results = pd.DataFrame(
-        columns=dsets, index=pd.Index((mdls + ["stacked"]), name="models")
-    )
     for ds in dsets:
+        # others = set(dsets) - {ds}
+        # r = "mc" if ds == "nu-icu" else "mn" if ds == "ucmc-icu" else "cn"
+        # stacked = get_stacked_results(
+        #     ds, mdls_to_stack=[f"mdl-{ds}-10" for ds in others] + [f"mdl-fedavg10-{r}"]
+        # )
         for mdl in mdls:
-            results.loc[mdl, ds] = res[ds, mdl][tt]
-            results.loc["stacked", ds] = stacked[ds][tt]
-    print(results)
+            results.loc[(tt, mdl), ds] = res[ds, mdl][tt]
+        # results.loc[(tt, "stacked-rem"), ds] = stacked[tt]
+print(results)
+
+# average over tokens for each model
+agg = results.groupby(level="models").mean()
+print(agg)
+
+
+get_results(ds, mdl, metric="brier_score_loss")

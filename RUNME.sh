@@ -127,9 +127,8 @@ mdls=(
 	ucmc-icu-{1..10}/mdl-cotorra
 	fedavg10-mc/coreopsis-round-10
 	fedavg10-mn/coreopsis-round-10
+	fedavg10-cn/coreopsis-round-10
 )
-
-mdls=(fedavg10-cn/coreopsis-round-10)
 
 # extract reps for each dataset, for each model
 for ds in "${dsets[@]}"; do
