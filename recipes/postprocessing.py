@@ -116,17 +116,37 @@ def get_results(ds, mdl, metric: str = "roc_auc_score"):
     return res
 
 
-res = {(ds, mdl): get_results(ds, mdl) for ds in dsets for mdl in mdls}
-
 results = pd.DataFrame(
     columns=dsets,
     index=pd.MultiIndex.from_product(
         (grokked_outcome_tokens, mdls), names=("token", "models")
     ),
 )
-for tt in grokked_outcome_tokens:
-    for ds in dsets:
-        for mdl in mdls:
-            results.loc[(tt, mdl), ds] = res[ds, mdl][tt]
+
+for ds in dsets:
+    for mdl in mdls + [
+        f"mdl-{ds}-{i:03d}" for i in list(range(1, 11)) + list(range(20, 110, 10))
+    ]:
+        res = get_results(ds, mdl)
+        for tt in grokked_outcome_tokens:
+            results.loc[(tt, mdl), ds] = res[tt]
 
 results.to_csv(hm / "fed-results.csv")
+
+
+mdls = ["mdl-mimic-icu-100", "mdl-ucmc-icu-100", "mdl-nu-icu-100", "mdl-all"]
+xfer = pd.DataFrame(
+    columns=dsets,
+    index=pd.MultiIndex.from_product(
+        (grokked_outcome_tokens, mdls), names=("token", "models")
+    ),
+)
+for ds in dsets:
+    for mdl in mdls:
+        res = get_results(ds, mdl)
+        for tt in grokked_outcome_tokens:
+            xfer.loc[(tt, mdl), ds] = res[tt]
+
+agg_xfer = xfer.groupby("models").mean().sort("models")
+
+xfer.to_csv(hm / "xfer-results.csv")

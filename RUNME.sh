@@ -8,11 +8,7 @@
 source .venv/bin/activate
 
 dsets=(mimic-icu ucmc-icu nu-icu)
-nsets=${#dsets[@]}
-dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-dsets_cfg=${dsets_cfg%,}
 config_home=./src/coreopsis/config
-export dsets nsets dsets_cfg config_home
 
 # harmonize medicines / respiratory data / sofa scoring with clifpy
 for h in mimic ucmc nu; do
@@ -65,74 +61,89 @@ cocoa combine-datasets \
 dsets+=('all')
 
 # train separate models on each dataset
-dsets=(ucmc-icu nu-icu)
 for ds in "${dsets[@]}"; do
 	sbatch --export=ALL,ds=$ds,config_home=$config_home \
 		recipes/run_training.sh
 done
 
-# train private models on each dataset
-for ds in "${dsets[@]}"; do
-	sbatch --export=ALL,private=1,ds=$ds,config_home=$config_home \
-		recipes/run_training.sh
+for num_server_rounds in 1 5 50 100; do
+	export num_server_rounds
+
+	# run federated learning on all datasets
+	dsets=(mimic-icu ucmc-icu nu-icu)
+	nsets=${#dsets[@]}
+	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+	dsets_cfg=${dsets_cfg%,}
+	output_home="./output/fedavg${num_server_rounds}"
+	export dsets nsets dsets_cfg output_home
+	sbatch --export=ALL \
+		--gres=gpu:$nsets \
+		recipes/run_federated.sh
+
+	# federated mimic + chicago
+	dsets=(mimic-icu ucmc-icu)
+	nsets=${#dsets[@]}
+	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+	dsets_cfg=${dsets_cfg%,}
+	output_home="./output/fedavg${num_server_rounds}-mc"
+	export dsets nsets dsets_cfg output_home
+	sbatch --export=ALL \
+		--gres=gpu:$nsets \
+		recipes/run_federated.sh
+
+	# federated mimic + nu
+	dsets=(mimic-icu nu-icu)
+	nsets=${#dsets[@]}
+	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+	dsets_cfg=${dsets_cfg%,}
+	output_home="./output/fedavg${num_server_rounds}-mn"
+	export dsets nsets dsets_cfg output_home
+	sbatch --export=ALL \
+		--gres=gpu:$nsets \
+		recipes/run_federated.sh
+
+	# federated nu + chicago
+	dsets=(ucmc-icu nu-icu)
+	nsets=${#dsets[@]}
+	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+	dsets_cfg=${dsets_cfg%,}
+	output_home="./output/fedavg${num_server_rounds}-cn"
+	export dsets nsets dsets_cfg output_home
+	sbatch --export=ALL \
+		--gres=gpu:$nsets \
+		recipes/run_federated.sh
 done
 
-# run federated learning
-sbatch --export=ALL \
-	--gres=gpu:$nsets \
-	recipes/run_federated.sh
-
-# run federated learning with client-side privacy
-sbatch --export=ALL,private_clients=1 \
-	--gres=gpu:$nsets \
-	recipes/run_federated.sh
-
-# federated mimic + chicago
-dsets=(mimic-icu ucmc-icu)
-nsets=${#dsets[@]}
-dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-dsets_cfg=${dsets_cfg%,}
-output_home='./output/fedavg10-mc'
-export dsets nsets dsets_cfg output_home
-sbatch --export=ALL \
-	--gres=gpu:$nsets \
-	recipes/run_federated.sh
-
-# federated mimic + nw
-dsets=(mimic-icu nu-icu)
-nsets=${#dsets[@]}
-dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-dsets_cfg=${dsets_cfg%,}
-output_home='./output/fedavg10-mn'
-export dsets nsets dsets_cfg output_home
-sbatch --export=ALL \
-	--gres=gpu:$nsets \
-	recipes/run_federated.sh
-
-# federated nw + chicago
-dsets=(ucmc-icu nu-icu)
-nsets=${#dsets[@]}
-dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-dsets_cfg=${dsets_cfg%,}
-output_home='./output/fedavg10-cn'
-export dsets nsets dsets_cfg output_home
-sbatch --export=ALL \
-	--gres=gpu:$nsets \
-	recipes/run_federated.sh
-
-dsets=(mimic-icu ucmc-icu nu-icu)
-mdls=(
-	fedavg10/coreopsis-round-{1..10}
-	mimic-icu-{1..10}/mdl-cotorra
-	nu-icu-{1..10}/mdl-cotorra
-	ucmc-icu-{1..10}/mdl-cotorra
-	fedavg10-mc/coreopsis-round-10
-	fedavg10-mn/coreopsis-round-10
-	fedavg10-cn/coreopsis-round-10
-)
-
 # extract reps for each dataset, for each model
-for ds in "${dsets[@]}"; do
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
+		fedavg10/coreopsis-round-10
+		fedavg10-{mc,mn,cn}/coreopsis-round-10
+		all/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
+	done
+done
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
+		fedavg10/coreopsis-round-10
+		fedavg10-{mc,mn,cn}/coreopsis-round-10
+		all/mdl-cotorra
+	)
 	for mdl in "${mdls[@]}"; do
 		cotorra extract \
 			--extraction-config ${config_home}/extraction.yaml \
@@ -149,3 +160,45 @@ for ds in "${dsets[@]}"; do
 done
 
 python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
+		fedavg10/coreopsis-round-10
+		fedavg10-{mc,mn,cn}/coreopsis-round-10
+		all/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		export config_home mdl ds
+		sbatch --export=ALL \
+			recipes/run_generative_scoring.sh
+	done
+done
+
+# for ds in mimic-icu ucmc-icu nu-icu; do
+# 	for mdl in {mimic-icu-100,ucmc-icu-100,nu-icu-100}/mdl-cotorra; do
+# 		cotorra generative-score \
+# 			--scoring-config ${config_home}/scoring.yaml \
+# 			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+# 			--model-home ./output/${mdl}
+# 	done
+# done
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		{mimic-icu-100,ucmc-icu-100,nu-icu-100}/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
+	done
+done

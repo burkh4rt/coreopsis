@@ -24,5 +24,4 @@ score:
     - EOS
   suppressed_tokens: [] # tokens to suppress (e.g. PAD) via logit bias
   trunc_id: !!int 0 # token id to force after time horizon exceeded
-  max_time: !!int 1440 # 1 day, max time horizon in minutes
   batch_size: !!int 64
