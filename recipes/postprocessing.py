@@ -29,15 +29,14 @@ hm = (
     / "bbj-lab/users/burkh4rt"
 )
 
-dsets = ("mimic-icu", "ucmc-icu", "nu-icu")
+dsets = ("ucmc-icu", "nu-icu", "mimic-icu")
 
-mdls = [f"mdl-{ds}-{i}" for ds in dsets for i in range(1, 11)] + [
-    "mdl-fedavg10",
-    "mdl-fedavg10-mc",
-    "mdl-fedavg10-mn",
-    "mdl-fedavg10-cn",
-    "mdl-all",
-]
+mdls = [
+    f"mdl-fedavg{n}{sfx}"
+    for n in (1, 5, 10, 50, 100)
+    for sfx in ("", "-mc", "-mn", "-cn")
+] + ["mdl-all"]
+
 grokked_outcome_tokens = [
     x
     for x in OmegaConf.load(
@@ -122,27 +121,30 @@ results = pd.DataFrame(
         (grokked_outcome_tokens, mdls), names=("token", "models")
     ),
 )
+results_pr_auc = results.copy()
 
 for ds in dsets:
     for mdl in mdls + [
         f"mdl-{ds}-{i:03d}" for i in list(range(1, 11)) + list(range(20, 110, 10))
     ]:
         res = get_results(ds, mdl)
+        res_pr_auc = get_results(ds, mdl, "pr_auc_score")
         for tt in grokked_outcome_tokens:
             results.loc[(tt, mdl), ds] = res[tt]
+            results_pr_auc.loc[(tt, mdl), ds] = res_pr_auc[tt]
 
 results.to_csv(hm / "fed-results.csv")
+results_pr_auc.to_csv(hm / "fed-results-pr-auc.csv")
 
-
-mdls = ["mdl-mimic-icu-100", "mdl-ucmc-icu-100", "mdl-nu-icu-100", "mdl-all"]
+mdls_xfer = ["mdl-mimic-icu-100", "mdl-ucmc-icu-100", "mdl-nu-icu-100"] + mdls
 xfer = pd.DataFrame(
     columns=dsets,
     index=pd.MultiIndex.from_product(
-        (grokked_outcome_tokens, mdls), names=("token", "models")
+        (grokked_outcome_tokens, mdls_xfer), names=("token", "models")
     ),
 )
 for ds in dsets:
-    for mdl in mdls:
+    for mdl in mdls_xfer:
         res = get_results(ds, mdl)
         for tt in grokked_outcome_tokens:
             xfer.loc[(tt, mdl), ds] = res[tt]

@@ -66,6 +66,9 @@ for ds in "${dsets[@]}"; do
 		recipes/run_training.sh
 done
 
+# pull out and rename models saved on first 10 100ths and all 10th parts
+# to create ${ds}-{{001..010},{020..100..10}}/mdl-cotorra for each dataset ds
+
 for num_server_rounds in 1 5 50 100; do
 	export num_server_rounds
 
@@ -118,30 +121,12 @@ done
 for ds in mimic-icu ucmc-icu nu-icu; do
 	mdls=(
 		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
-		fedavg10/coreopsis-round-10
-		fedavg10-{mc,mn,cn}/coreopsis-round-10
-		all/mdl-cotorra
-	)
-	for mdl in "${mdls[@]}"; do
-		cotorra extract \
-			--extraction-config ${config_home}/extraction.yaml \
-			--processed-data-home ./processed/${ds} \
-			--model-home ./output/${mdl} \
-			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cotorra rep-based-score \
-			--scoring-config ${config_home}/scoring.yaml \
-			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
-			--model-home ./output/${mdl} \
-			--estimator logistic-CV
-	done
-done
-
-for ds in mimic-icu ucmc-icu nu-icu; do
-	mdls=(
-		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
-		fedavg10/coreopsis-round-10
-		fedavg10-{mc,mn,cn}/coreopsis-round-10
+		{mimic-icu-100,ucmc-icu-100,nu-icu-100}/mdl-cotorra
+		fedavg1{,-mc,-mn,-cn}/coreopsis-round-1
+		fedavg5{,-mc,-mn,-cn}/coreopsis-round-5
+		fedavg10{,-mc,-mn,-cn}/coreopsis-round-10
+		fedavg50{,-mc,-mn,-cn}/coreopsis-round-50
+		fedavg100{,-mc,-mn,-cn}/coreopsis-round-100
 		all/mdl-cotorra
 	)
 	for mdl in "${mdls[@]}"; do
@@ -161,20 +146,6 @@ done
 
 python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
 
-for ds in mimic-icu ucmc-icu nu-icu; do
-	mdls=(
-		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
-		fedavg10/coreopsis-round-10
-		fedavg10-{mc,mn,cn}/coreopsis-round-10
-		all/mdl-cotorra
-	)
-	for mdl in "${mdls[@]}"; do
-		export config_home mdl ds
-		sbatch --export=ALL \
-			recipes/run_generative_scoring.sh
-	done
-done
-
 # for ds in mimic-icu ucmc-icu nu-icu; do
 # 	for mdl in {mimic-icu-100,ucmc-icu-100,nu-icu-100}/mdl-cotorra; do
 # 		cotorra generative-score \
@@ -183,22 +154,3 @@ done
 # 			--model-home ./output/${mdl}
 # 	done
 # done
-
-for ds in mimic-icu ucmc-icu nu-icu; do
-	mdls=(
-		{mimic-icu-100,ucmc-icu-100,nu-icu-100}/mdl-cotorra
-	)
-	for mdl in "${mdls[@]}"; do
-		cotorra extract \
-			--extraction-config ${config_home}/extraction.yaml \
-			--processed-data-home ./processed/${ds} \
-			--model-home ./output/${mdl} \
-			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cotorra rep-based-score \
-			--scoring-config ${config_home}/scoring.yaml \
-			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
-			--model-home ./output/${mdl} \
-			--estimator logistic-CV
-	done
-done
