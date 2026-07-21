@@ -13,9 +13,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from omegaconf import OmegaConf
-from sklearn import linear_model as skl_lm
 from sklearn import metrics as skl_mets
-from sklearn import model_selection as skl_mdl_sel
 
 pd.options.display.float_format = "{:,.3f}".format
 pd.options.display.max_columns = None
@@ -49,49 +47,6 @@ grokked_outcome_tokens = [
         ]
     )
 ]
-
-
-def get_stacked_results(ds, mdls_to_stack):
-    df = pl.concat(
-        [
-            pl.read_parquet(
-                hm / "processed" / ds / mdl / "scores-rep-based-*.parquet"
-            ).with_columns(mdl=pl.lit(mdl))
-            for mdl in mdls_to_stack
-        ],
-        how="diagonal",
-    )
-    res = dict()
-    for tt in grokked_outcome_tokens:
-        preds = np.hstack(
-            [
-                df.filter(mdl=mdl).select(f"{tt}_rep_score").to_numpy()
-                for mdl in mdls_to_stack
-            ]
-        )
-        y_qual, y_true = (
-            df.filter(mdl=mdls_to_stack[0])
-            .select(~pl.col(f"{tt}_past"), f"{tt}_future")
-            .to_numpy()
-            .T
-        )
-        stacked = np.nan * np.ones_like(y_true)
-        stacked[y_qual] = skl_mdl_sel.cross_val_predict(
-            skl_lm.LogisticRegressionCV(
-                n_jobs=-1,
-                scoring="roc_auc",
-                max_iter=10_000,
-                use_legacy_attributes=False,
-                l1_ratios=(0,),
-            ),
-            X=preds[y_qual],
-            y=y_true[y_qual],
-            method="predict_proba",
-        )[:, 1]
-        res[tt] = skl_mets.roc_auc_score(
-            y_true[y_qual.astype(bool)], np.nan_to_num(stacked)[y_qual.astype(bool)]
-        )
-    return res
 
 
 def get_results(ds, mdl, metric: str = "roc_auc_score"):
@@ -159,3 +114,29 @@ for ds in dsets:
             xfer.loc[(tt, mdl), ds] = res[tt]
 
 agg_xfer = xfer.groupby("models").mean().sort_values("models")
+
+
+mdls = [
+    f"mdl-{method}10{sfx}"
+    for sfx in ("", "-mc", "-mn", "-cn")
+    for method in ("fedavg", "fedavgm", "fedadam")
+]
+
+results = pd.DataFrame(
+    columns=dsets,
+    index=pd.MultiIndex.from_product(
+        (grokked_outcome_tokens, mdls), names=("token", "models")
+    ),
+)
+results_pr_auc = results.copy()
+
+for ds in dsets:
+    for mdl in mdls:
+        res = get_results(ds, mdl)
+        res_pr_auc = get_results(ds, mdl, "pr_auc_score")
+        for tt in grokked_outcome_tokens:
+            results.loc[(tt, mdl), ds] = res[tt]
+            results_pr_auc.loc[(tt, mdl), ds] = res_pr_auc[tt]
+
+results.to_csv(hm / "fed-strategy-results-roc-auc.csv")
+results_pr_auc.to_csv(hm / "fed-strategy-results-pr-auc.csv")

@@ -35,7 +35,7 @@ def server_fn(context: Context):
         context=context,
         on_fit_config_fn=lambda server_round: {"server_round": server_round},
         **(
-            {"server_learning_rate": 1.0, "server_momentum": 0.1}
+            {"server_learning_rate": 1.0, "server_momentum": 0.5}
             if fed_strategy == "FedAvgM"
             else {}
         ),

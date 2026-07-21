@@ -14,6 +14,8 @@ margin: 0 auto; -webkit-mask-image: radial-gradient(
 
 # Coreopsis: choreographed training with flower
 
+[![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/bbj-lab/coreopsis/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/bbj-lab/coreopsis)
+
 > 🌼 over 89 varieties of coreopsis have called Chicago home
 
 ## About

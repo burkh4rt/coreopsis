@@ -14,7 +14,7 @@
         "click<8.2",
         "clifpy @ git+https://github.com/burkh4rt/clifpy.git@utc-fix",
         "cocoa-tokenizer",
-        "cotorra",
+        "cotorra @ git+https://github.com/bbj-lab/cotorra.git",
         "flwr[simulation]==1.18.0",
         "huggingface_hub>=0.23.2,<1.0",
         "kaleido",

@@ -35,9 +35,9 @@ COL_ALL = "#CC8A00"  # dark goldenrod -- single model pooled over all data
 # element proportionally to the figure's own width makes labels, ticks, markers,
 # and lines appear uniform once all figures share the same final width.
 REF_WIDTH = 900  # width at which the base sizes below apply (scale factor 1.0)
-FONT_SIZE = 20  # axis titles, tick labels, legend entries
-TITLE_SIZE = 26  # main figure title
-SUBTITLE_SIZE = 22  # subplot (panel) titles
+FONT_SIZE = 30  # axis titles, tick labels, legend entries
+TITLE_SIZE = 42  # main figure title
+SUBTITLE_SIZE = 36  # subplot (panel) titles
 LINE_WIDTH = 2
 MARKER_SIZE = 8
 
@@ -84,114 +84,96 @@ for csv_name, metric_label, metric_slug in metrics:
     # -----------------------------------------------------------------------
     # performance vs. fraction of a site's training data, with fed baselines
     # -----------------------------------------------------------------------
-    # iterate over aggregate (None) then each individual token
-    tokens = [None]  # + list(results["token"].unique())
+    # aggregate over all tokens
+    agg = results.set_index(["token", "models"]).groupby("models").mean()
 
-    for token in tokens:
-        if token is None:
-            agg = results.set_index(["token", "models"]).groupby("models").mean()
-        else:
-            agg = (
-                results[results["token"] == token]
-                .set_index(["token", "models"])
-                .groupby("models")
-                .mean()
-            )
+    fig_width = 900
+    s = fig_width / REF_WIDTH  # scale factor for all sized elements
 
-        fig_width = 900
-        s = fig_width / REF_WIDTH  # scale factor for all sized elements
+    fig = make_subplots(
+        rows=1,
+        cols=len(plot_dsets),
+        shared_yaxes=True,
+        subplot_titles=[name for name, *_ in plot_dsets.values()],
+        horizontal_spacing=0.03,
+        # widths proportional to log-span up to each size -> uniform log x-scale
+        column_widths=[
+            math.log10(size) - math.log10(x_lo) for *_, size in plot_dsets.values()
+        ],
+    )
+    fig.update_annotations(font_size=SUBTITLE_SIZE * s)  # subplot titles
 
-        fig = make_subplots(
-            rows=1,
-            cols=len(plot_dsets),
-            shared_yaxes=True,
-            subplot_titles=[name for name, *_ in plot_dsets.values()],
-            horizontal_spacing=0.03,
-            # widths proportional to log-span up to each size -> uniform log x-scale
-            column_widths=[
-                math.log10(size) - math.log10(x_lo) for *_, size in plot_dsets.values()
-            ],
+    for col, (ds, (name, other_fed, size)) in enumerate(plot_dsets.items(), start=1):
+        show = col == 1  # one shared legend
+
+        # approximate training-set size at each fraction of this site's data
+        sizes = [f * size for f in fracs]
+
+        # site-trained sweep over increasing fractions of this site's data
+        curve = [agg.loc[f"mdl-{ds}-{n:03d}", ds] for n in frac_nums]
+        fig.add_trace(
+            go.Scatter(
+                x=sizes,
+                y=curve,
+                mode="lines+markers",
+                name="site-trained",
+                legendgroup="site-trained",
+                showlegend=show,
+                line=dict(color=COL_CURVE, width=LINE_WIDTH * s),
+                marker=dict(size=MARKER_SIZE * s, color=COL_CURVE),
+            ),
+            row=1,
+            col=col,
         )
-        fig.update_annotations(font_size=SUBTITLE_SIZE * s)  # subplot titles
 
-        for col, (ds, (name, other_fed, size)) in enumerate(
-            plot_dsets.items(), start=1
-        ):
-            show = col == 1  # one shared legend
-
-            # approximate training-set size at each fraction of this site's data
-            sizes = [f * size for f in fracs]
-
-            # site-trained sweep over increasing fractions of this site's data
-            curve = [agg.loc[f"mdl-{ds}-{n:03d}", ds] for n in frac_nums]
+        # horizontal federated / pooled baselines
+        baselines = [
+            ("fedavg (other two sites)", agg.loc[other_fed, ds], COL_OTHER),
+            ("fedavg (all three sites)", agg.loc["mdl-fedavg10", ds], COL_FED),
+            ("all data (pooled)", agg.loc["mdl-all", ds], COL_ALL),
+        ]
+        for label, val, color in baselines:
             fig.add_trace(
                 go.Scatter(
-                    x=sizes,
-                    y=curve,
-                    mode="lines+markers",
-                    name="site-trained",
-                    legendgroup="site-trained",
+                    x=[sizes[0], sizes[-1]],
+                    y=[val, val],
+                    mode="lines",
+                    name=label,
+                    legendgroup=label,
                     showlegend=show,
-                    line=dict(color=COL_CURVE, width=LINE_WIDTH * s),
-                    marker=dict(size=MARKER_SIZE * s, color=COL_CURVE),
+                    line=dict(color=color, width=LINE_WIDTH * s, dash="dash"),
                 ),
                 row=1,
                 col=col,
             )
-
-            # horizontal federated / pooled baselines
-            baselines = [
-                ("fedavg (other two sites)", agg.loc[other_fed, ds], COL_OTHER),
-                ("fedavg (all three sites)", agg.loc["mdl-fedavg10", ds], COL_FED),
-                ("all data (pooled)", agg.loc["mdl-all", ds], COL_ALL),
-            ]
-            for label, val, color in baselines:
-                fig.add_trace(
-                    go.Scatter(
-                        x=[sizes[0], sizes[-1]],
-                        y=[val, val],
-                        mode="lines",
-                        name=label,
-                        legendgroup=label,
-                        showlegend=show,
-                        line=dict(color=color, width=LINE_WIDTH * s, dash="dash"),
-                    ),
-                    row=1,
-                    col=col,
-                )
-            fig.update_xaxes(
-                title_text="training size",
-                type="log",
-                range=[math.log10(x_lo), math.log10(size)],
-                tickvals=x_tickvals,
-                ticktext=x_ticktext,
-                row=1,
-                col=col,
-            )
-
-        title = f"Mean {metric_label} vs. training set size"
-        title += f" — {token}" if token is not None else ""
-
-        fig.update_yaxes(title_text=f"mean {metric_label}", row=1, col=1)
-        fig.update_layout(
-            template="plotly_white",
-            font=dict(
-                family="CMU Serif, Latin Modern Roman, serif", size=FONT_SIZE * s
-            ),
-            title=dict(text=title, font=dict(size=TITLE_SIZE * s)),
-            legend=dict(
-                orientation="h", yanchor="top", y=-0.28, xanchor="center", x=0.5
-            ),
-            margin=dict(l=60, r=30, t=90, b=120),
-            width=fig_width,
-            height=560,
+        fig.update_xaxes(
+            title_text="training size",
+            type="log",
+            range=[math.log10(x_lo), math.log10(size)],
+            tickvals=x_tickvals,
+            ticktext=x_ticktext,
+            row=1,
+            col=col,
         )
-        safe_token = (
-            "aggregate"
-            if token is None
-            else str(token).replace("/", "-").replace(" ", "_")
-        )
-        fig.write_image(hm / f"data-fraction-sweep-{metric_slug}-{safe_token}.pdf")
+
+    fig.update_yaxes(title_text=f"mean {metric_label}", row=1, col=1)
+    fig.update_layout(
+        template="plotly_white",
+        font=dict(
+            family="CMU Serif, Latin Modern Roman, serif",
+            size=FONT_SIZE * s,
+            color="black",
+        ),
+        title=dict(
+            text=f"Mean {metric_label} vs. training set size",
+            font=dict(size=TITLE_SIZE * s, color="black"),
+        ),
+        legend=dict(orientation="h", yanchor="top", y=-0.36, xanchor="center", x=0.5),
+        margin=dict(l=60, r=30, t=120, b=210),
+        width=fig_width,
+        height=690,
+    )
+    fig.write_image(hm / f"data-fraction-sweep-{metric_slug}-aggregate.pdf")
 
     # -----------------------------------------------------------------------
     # average performance vs. number of federation rounds (all-site FedAvg)
@@ -225,16 +207,18 @@ for csv_name, metric_label, metric_slug in metrics:
     fig.update_yaxes(title_text=f"mean {metric_label}")
     fig.update_layout(
         template="plotly_white",
-        font=dict(family="CMU Serif, Latin Modern Roman, serif", size=FONT_SIZE * s),
+        font=dict(
+            family="CMU Serif, Latin Modern Roman, serif",
+            size=FONT_SIZE * s,
+            color="black",
+        ),
         title=dict(
-            text=f"Mean {metric_label} vs. number of federation rounds",
-            font=dict(size=TITLE_SIZE * s),
+            text=f"Mean {metric_label} vs. federation rounds",
+            font=dict(size=TITLE_SIZE * s, color="black"),
         ),
-        legend=dict(
-            orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5
-        ),
-        margin=dict(l=60, r=30, t=50, b=30),
+        legend=dict(orientation="h", yanchor="top", y=-0.28, xanchor="center", x=0.5),
+        margin=dict(l=60, r=30, t=60, b=150),
         width=fig_width,
-        height=500,
+        height=570,
     )
     fig.write_image(hm / f"fed-rounds-sweep-{metric_slug}.pdf")
