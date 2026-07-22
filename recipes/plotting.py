@@ -39,7 +39,8 @@ FONT_SIZE = 30  # axis titles, tick labels, legend entries
 TITLE_SIZE = 42  # main figure title
 SUBTITLE_SIZE = 36  # subplot (panel) titles
 LINE_WIDTH = 2
-MARKER_SIZE = 8
+MARKER_SIZE = 6
+BAND_ALPHA = 0.06  # translucent fill for the baseline confidence bands
 
 # dataset -> (display name, fedavg model trained on the *other two* sites,
 #             full training-set size)
@@ -72,14 +73,50 @@ round_dsets = {
     "mimic-icu": ("MIMIC", "#275D38"),  # forest
 }
 
-# metric -> (results csv, axis/title label, output filename slug)
+
+def rgba(hex_color, alpha):
+    """'#RRGGBB' -> 'rgba(r, g, b, alpha)' for translucent fills."""
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def load_cis(csv_name):
+    """Bootstrap 95% CIs saved as '[lo hi]' numpy-repr strings, indexed by
+    model with one column per dataset -> DataFrame of (lo, hi) float tuples."""
+
+    def parse(s):
+        if pd.isna(s):
+            return (float("nan"), float("nan"))
+        lo, hi = (float(x) for x in str(s).strip("[]").split())
+        return (lo, hi)
+
+    return pd.read_csv(hm / csv_name, index_col=0).rename_axis("models").map(parse)
+
+
+def make_error_y(centers, cis, color, s):
+    """asymmetric plotly error bars from bootstrap (lo, hi) CI tuples,
+    measured off each plotted center (the mean over tokens)."""
+    return dict(
+        type="data",
+        symmetric=False,
+        array=[hi - c for c, (lo, hi) in zip(centers, cis)],
+        arrayminus=[c - lo for c, (lo, hi) in zip(centers, cis)],
+        color=color,
+        thickness=LINE_WIDTH * s,
+        width=MARKER_SIZE * s * 0.6,
+    )
+
+
+# metric -> (results csv, aggregate-CI csv, axis/title label, output slug)
 metrics = [
-    ("tokenwise-roc-auc.csv", "ROC-AUC", "roc-auc"),
-    ("tokenwise-pr-auc.csv", "PR-AUC", "pr-auc"),
+    ("tokenwise-roc-auc.csv", "aggregate-roc-cis.csv", "ROC-AUC", "roc-auc"),
+    ("tokenwise-pr-auc.csv", "aggregate-pr-cis.csv", "PR-AUC", "pr-auc"),
 ]
 
-for csv_name, metric_label, metric_slug in metrics:
+for csv_name, ci_csv, metric_label, metric_slug in metrics:
     results = pd.read_csv(hm / csv_name)
+    ci = load_cis(ci_csv)
 
     # -----------------------------------------------------------------------
     # performance vs. fraction of a site's training data, with fed baselines
@@ -109,8 +146,36 @@ for csv_name, metric_label, metric_slug in metrics:
         # approximate training-set size at each fraction of this site's data
         sizes = [f * size for f in fracs]
 
-        # site-trained sweep over increasing fractions of this site's data
+        # horizontal federated / pooled baselines (model looked up per site)
+        baselines = [
+            ("fedavg (other two sites)", other_fed, COL_OTHER),
+            ("fedavg (all three sites)", "mdl-fedavg10", COL_FED),
+            ("all data (pooled)", "mdl-all", COL_ALL),
+        ]
+
+        # 95% CI bands for the baselines, drawn behind everything else
+        for label, mdl, color in baselines:
+            lo, hi = ci.loc[mdl, ds]
+            fig.add_trace(
+                go.Scatter(
+                    x=[sizes[0], sizes[-1], sizes[-1], sizes[0]],
+                    y=[lo, lo, hi, hi],
+                    fill="toself",
+                    fillcolor=rgba(color, BAND_ALPHA),
+                    mode="lines",
+                    line=dict(width=0),
+                    legendgroup=label,
+                    showlegend=False,
+                    hoverinfo="skip",
+                ),
+                row=1,
+                col=col,
+            )
+
+        # site-trained sweep over increasing fractions of this site's data,
+        # with asymmetric 95% CI error bars on each point
         curve = [agg.loc[f"mdl-{ds}-{n:03d}", ds] for n in frac_nums]
+        curve_ci = [ci.loc[f"mdl-{ds}-{n:03d}", ds] for n in frac_nums]
         fig.add_trace(
             go.Scatter(
                 x=sizes,
@@ -121,18 +186,15 @@ for csv_name, metric_label, metric_slug in metrics:
                 showlegend=show,
                 line=dict(color=COL_CURVE, width=LINE_WIDTH * s),
                 marker=dict(size=MARKER_SIZE * s, color=COL_CURVE),
+                error_y=make_error_y(curve, curve_ci, COL_CURVE, s),
             ),
             row=1,
             col=col,
         )
 
-        # horizontal federated / pooled baselines
-        baselines = [
-            ("fedavg (other two sites)", agg.loc[other_fed, ds], COL_OTHER),
-            ("fedavg (all three sites)", agg.loc["mdl-fedavg10", ds], COL_FED),
-            ("all data (pooled)", agg.loc["mdl-all", ds], COL_ALL),
-        ]
-        for label, val, color in baselines:
+        # baseline center lines drawn on top of their CI bands
+        for label, mdl, color in baselines:
+            val = agg.loc[mdl, ds]
             fig.add_trace(
                 go.Scatter(
                     x=[sizes[0], sizes[-1]],
@@ -187,6 +249,7 @@ for csv_name, metric_label, metric_slug in metrics:
     fig = go.Figure()
     for ds, (name, color) in round_dsets.items():
         curve = [agg.loc[f"mdl-fedavg{n}", ds] for n in fed_rounds]
+        curve_ci = [ci.loc[f"mdl-fedavg{n}", ds] for n in fed_rounds]
         fig.add_trace(
             go.Scatter(
                 x=fed_rounds,
@@ -195,6 +258,7 @@ for csv_name, metric_label, metric_slug in metrics:
                 name=name,
                 line=dict(color=color, width=LINE_WIDTH * s),
                 marker=dict(size=MARKER_SIZE * s, color=color),
+                error_y=make_error_y(curve, curve_ci, color, s),
             )
         )
 

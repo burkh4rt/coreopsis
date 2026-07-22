@@ -25,6 +25,13 @@ def fmt_ci(s, p=3):
     lo, hi = (float(v) for v in s.strip("[]").split())
     return f"[{lo:.{p}f}, {hi:.{p}f}]"
 
+
+def re_fmt_ci(s, p=3):
+    """Format a stringified CI (e.g. "[0.76768137 0.79238952]") to p decimals."""
+    lo, hi = (float(v) for v in s.strip("[]").split())
+    return f"{(lo + hi) / 2:.{p}f} (±{(hi - lo) / 2:.{p}f})"
+
+
 agg_roc_ci = pd.read_csv(hm / "aggregate-roc-cis.csv", index_col=0).rename_axis(
     "models"
 )
@@ -42,5 +49,14 @@ mdls = (
     + [f"mdl-{method}10" for method in methods]
     + ["mdl-all"]
 )
+print(agg_roc_ci.loc[mdls].map(re_fmt_ci))
+print(agg_pr_ci.loc[mdls].map(re_fmt_ci))
+print(agg_roc.loc[mdls])
+print(agg_pr.loc[mdls])
+
+# methods
+mdls = [f"mdl-{method}10" for method in methods] + ["mdl-all"]
 print(agg_roc_ci.loc[mdls].map(fmt_ci))
-print(agg_pr_ci.loc[mdls].map(fmt_ci))
+print(agg_pr_ci.loc[mdls].map(re_fmt_ci))
+print(agg_roc.loc[mdls].to_latex(float_format="%.3f"))
+print(agg_pr.loc[mdls].to_latex(float_format="%.3f"))

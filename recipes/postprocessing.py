@@ -133,7 +133,7 @@ def get_all_cis(dsets, mdls):
     return cis_roc_auc, cis_pr_auc
 
 
-def get_pvals(ds, mdl0, mdl1):
+def get_pvals(ds, mdl0, mdl1, alternative="two-sided"):
     df0 = pl.read_parquet(hm / "processed" / ds / mdl0 / "scores-rep-based-*.parquet")
     df1 = pl.read_parquet(hm / "processed" / ds / mdl1 / "scores-rep-based-*.parquet")
     y_trues, y_score0s, y_score1s = [], [], []
@@ -161,7 +161,7 @@ def get_pvals(ds, mdl0, mdl1):
         n_samples=1_000,
         metrics=("avg_roc_auc", "avg_pr_auc"),
         paired=True,
-        alternative="two-sided",
+        alternative=alternative,
     )
     return float(cis["avg_roc_auc"]), float(cis["avg_pr_auc"])
 
@@ -174,3 +174,15 @@ if __name__ == "__main__":
     aggregate_roc_cis, aggregate_pr_cis = get_all_cis(dsets, mdls)
     aggregate_roc_cis.to_csv(hm / "aggregate-roc-cis.csv")
     aggregate_pr_cis.to_csv(hm / "aggregate-pr-cis.csv")
+
+    for ds in dsets:
+        print(
+            f"{ds=}",
+            get_pvals(ds, "mdl-fedavg10", "mdl-fedavgm10", alternative="one-sided"),
+        )
+
+    for ds in dsets:
+        print(f"{ds=}", get_pvals(ds, "mdl-fedavg10", "mdl-fedadam10"))
+
+    for ds in dsets:
+        print(f"{ds=}", get_pvals(ds, "mdl-fedavgm10", "mdl-fedadam10"))
