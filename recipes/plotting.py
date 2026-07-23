@@ -20,14 +20,48 @@ pd.options.display.show_dimensions = True
 
 hm = pathlib.Path("~/Downloads").expanduser().resolve()
 
+colors = {
+    # Primary
+    "maroon": "#800000",
+    "light_greystone": "#D9D9D9",
+    "greystone": "#A6A6A6",
+    "dark_greystone": "#737373",
+    "white": "#FFFFFF",
+    "black": "#000000",
+    # Secondary - base shades
+    "goldenrod": "#EAAA00",
+    "terracotta": "#DE7C00",
+    "ivy": "#789D4A",
+    "forest": "#275D38",
+    "lake": "#007396",
+    "violet": "#59315F",
+    "brick": "#A4343A",
+    # Secondary - light shades
+    "goldenrod_light": "#F3D03E",
+    "terracotta_light": "#ECA154",
+    "ivy_light": "#A9C47F",
+    "forest_light": "#9CAF88",
+    "lake_light": "#3EB1C8",
+    "violet_light": "#86647A",
+    "brick_light": "#B46A55",
+    # Secondary - dark shades
+    "goldenrod_dark": "#CC8A00",
+    "terracotta_dark": "#A9431E",
+    "ivy_dark": "#13301C",
+    "forest_dark": "#284734",
+    "lake_dark": "#002A3A",
+    "violet_dark": "#41273B",
+    "brick_dark": "#643335",
+}
+
 # ---------------------------------------------------------------------------
 # shared style / configuration (metric-independent)
 # ---------------------------------------------------------------------------
 # validated categorical palette (light mode)
-COL_CURVE = "#737373"  # dark greystone -- site-trained sweep
-COL_OTHER = "#789D4A"  # ivy -- fedavg on the other two sites
-COL_FED = "#A4343A"  # brick -- fedavg on all three sites
-COL_ALL = "#CC8A00"  # dark goldenrod -- single model pooled over all data
+COL_CURVE = colors["dark_greystone"]  #  site-trained sweep
+COL_OTHER = colors["ivy"]  # fedavg on the other two sites
+COL_FED = colors["brick"]  # fedavg on all three sites
+COL_ALL = colors["dark_goldenrod"]  # single model pooled over all data
 
 # uniform label/mark sizing after rescaling:
 # each figure is exported at its own pixel width (multi-panel vs. single panel)
@@ -68,9 +102,9 @@ fed_rounds = [1, 5, 10, 50, 100]
 # dataset -> (display name, color); per-dataset palette, independent of the
 # role-based palette used by the data-fraction plots above
 round_dsets = {
-    "ucmc-icu": ("UCMC", "#007396"),  # lake
-    "nu-icu": ("NU", "#DE7C00"),  # terracotta
-    "mimic-icu": ("MIMIC", "#275D38"),  # forest
+    "ucmc-icu": ("UCMC", colors["lake"]),  # lake
+    "nu-icu": ("NU", colors["terracotta"]),  # terracotta
+    "mimic-icu": ("MIMIC", colors["forest"]),  # forest
 }
 
 

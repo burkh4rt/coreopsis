@@ -56,6 +56,7 @@ training_args:
   remove_unused_columns: !!bool false # otherwise `s_elapsed` is automatically dropped
   # bf16: !!bool true
   # max_steps: !!int 10 # uncomment for testing purposes only
+  num_train_epochs: !!int 3 # thanks @AuroraColombo for pointing out this hf default
 
 tuning_args:
   direction: minimize

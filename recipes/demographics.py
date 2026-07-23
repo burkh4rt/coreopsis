@@ -173,3 +173,33 @@ print(
 )
 
 print({k: v.shape[0] for k, v in df_test.items()})
+
+
+rev = {
+    v: k
+    for k, v in OmegaConf.load(hm / "processed" / "ucmc-icu" / "tokenizer.yaml")[
+        "lookup"
+    ].items()
+}
+
+df = (
+    pl.read_parquet(hm / "processed" / "ucmc-icu" / "held_out_for_inference.parquet")
+    .filter("RESP//imv_past")
+    .with_columns(pl.col("tokens").list.eval(pl.element().replace_strict(rev)))
+)
+
+", ".join(
+    [
+        f"<{x}>"
+        for x in (
+            df.filter(pl.col("subject_id") == "642969984").select("tokens").item()
+        )
+    ]
+)
+
+
+df = (
+    pl.read_parquet(hm / "processed" / "ucmc-icu" / "held_out_for_inference.parquet")
+    .filter("LABEL//pressor_init_past")
+    .with_columns(pl.col("tokens").list.eval(pl.element().replace_strict(rev)))
+)
