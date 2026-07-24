@@ -8,6 +8,7 @@ import fnmatch
 import importlib.resources as resources
 import os
 import pathlib
+import typing
 
 import numpy as np
 import pandas as pd
@@ -44,9 +45,9 @@ mdls = list(
         for ds in dsets
     }
     | {
-        f"mdl-{method}10{sfx}"
+        f"mdl-{inference}10{sfx}"
         for sfx in ("", "-mc", "-mn", "-cn")
-        for method in ("fedavg", "fedavgm", "fedadam")
+        for inference in ("fedavg", "fedavgm", "fedadam")
     }
     | {"mdl-all"}
 )
@@ -65,12 +66,17 @@ grokked_outcome_tokens = [
 ]
 
 
-def get_tokenwise_results(ds, mdl):
-    df = pl.read_parquet(hm / "processed" / ds / mdl / "scores-rep-based-*.parquet")
+def get_tokenwise_results(
+    ds,
+    mdl,
+    inference: typing.Literal["rep-based", "generative"] = "rep-based",
+    method: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+):
+    df = pl.read_parquet(hm / "processed" / ds / mdl / f"scores-{inference}-*.parquet")
     roc_auc, pr_auc = dict(), dict()
     for tt in grokked_outcome_tokens:
         y_qual, y_true, y_score = (
-            df.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score")
+            df.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_{method}_score")
             .to_numpy()
             .T
         )
@@ -84,7 +90,12 @@ def get_tokenwise_results(ds, mdl):
     return roc_auc, pr_auc
 
 
-def get_all_tokenwise_results(dsets, mdls):
+def get_all_tokenwise_results(
+    dsets,
+    mdls,
+    inference: typing.Literal["rep-based", "generative"] = "rep-based",
+    method: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+):
     results_roc_auc = pd.DataFrame(
         index=pd.MultiIndex.from_product(
             (grokked_outcome_tokens, mdls), names=("token", "models")
@@ -95,7 +106,7 @@ def get_all_tokenwise_results(dsets, mdls):
     for mdl in mdls:
         for ds in dsets:
             try:
-                res, res_pr_auc = get_tokenwise_results(ds, mdl)
+                res, res_pr_auc = get_tokenwise_results(ds, mdl, inference, method)
                 for tt in grokked_outcome_tokens:
                     results_roc_auc.loc[(tt, mdl), ds] = res[tt]
                     results_pr_auc.loc[(tt, mdl), ds] = res_pr_auc[tt]
@@ -104,12 +115,17 @@ def get_all_tokenwise_results(dsets, mdls):
     return results_roc_auc, results_pr_auc
 
 
-def get_cis(ds, mdl):
-    df = pl.read_parquet(hm / "processed" / ds / mdl / "scores-rep-based-*.parquet")
+def get_cis(
+    ds,
+    mdl,
+    inference: typing.Literal["rep-based", "generative"] = "rep-based",
+    method: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+):
+    df = pl.read_parquet(hm / "processed" / ds / mdl / f"scores-{inference}-*.parquet")
     y_trues, y_scores = [], []
     for tt in grokked_outcome_tokens:
         y_qual, y_true, y_score = (
-            df.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score")
+            df.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_{method}_score")
             .to_numpy()
             .T
         )
@@ -121,32 +137,52 @@ def get_cis(ds, mdl):
     return cis["avg_roc_auc"], cis["avg_pr_auc"]
 
 
-def get_all_cis(dsets, mdls):
+def get_all_cis(
+    dsets,
+    mdls,
+    inference: typing.Literal["rep-based", "generative"] = "rep-based",
+    method: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+):
     cis_roc_auc = pd.DataFrame(index=mdls, columns=dsets)
     cis_pr_auc = cis_roc_auc.copy()
     for mdl in mdls:
         for ds in dsets:
             try:
-                cis_roc_auc.loc[mdl, ds], cis_pr_auc.loc[mdl, ds] = get_cis(ds, mdl)
+                cis_roc_auc.loc[mdl, ds], cis_pr_auc.loc[mdl, ds] = get_cis(
+                    ds, mdl, inference, method
+                )
             except (FileNotFoundError, pl.exceptions.ComputeError):
                 pass
     return cis_roc_auc, cis_pr_auc
 
 
-def get_pvals(ds, mdl0, mdl1, alternative="two-sided"):
-    df0 = pl.read_parquet(hm / "processed" / ds / mdl0 / "scores-rep-based-*.parquet")
-    df1 = pl.read_parquet(hm / "processed" / ds / mdl1 / "scores-rep-based-*.parquet")
+def get_pvals(
+    ds,
+    mdl0,
+    mdl1,
+    alternative="two-sided",
+    inference0: typing.Literal["rep-based", "generative"] = "rep-based",
+    method0: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+    inference1: typing.Literal["rep-based", "generative"] = "rep-based",
+    method1: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+):
+    df0 = pl.read_parquet(
+        hm / "processed" / ds / mdl0 / f"scores-{inference0}-*.parquet"
+    )
+    df1 = pl.read_parquet(
+        hm / "processed" / ds / mdl1 / f"scores-{inference1}-*.parquet"
+    )
     y_trues, y_score0s, y_score1s = [], [], []
     for tt in grokked_outcome_tokens:
         y_qual0, y_true0, y_score0 = (
-            df0.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score")
+            df0.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_{method0}_score")
             .to_numpy()
             .T
         )
         y_trues.append(y_true0[y_qual0.astype(bool)])
         y_score0s.append(np.nan_to_num(y_score0)[y_qual0.astype(bool)])
         y_qual1, y_true1, y_score1 = (
-            df1.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_rep_score")
+            df1.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_{method1}_score")
             .to_numpy()
             .T
         )
