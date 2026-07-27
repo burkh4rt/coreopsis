@@ -17,7 +17,7 @@ coreopsis run . standard \
 				 'output-home'='${output_home:-./output/fedavg10}'
 				 'num-server-rounds'=${num_server_rounds:-10}
 				 'datasets'='[$dsets_cfg]'
-				 'training-config'='./src/coreopsis/config/training.yaml'
+				 'training-config'='./src/coreopsis/config/training-generative.yaml'
 				 " \
 	--federation-config "
 						options.num-supernodes=${nsets}

@@ -24,15 +24,16 @@ wandb:
   project: coreopsis
   run_name: *run_name
 
-custom_loss: !!bool true
-quantile_token_loss:
-  qt_weight: !!float 0.5
-label_weighted_loss:
-  tokens_of_interest: *tois
-  toi_weight: !!float 20.0
+custom_loss: !!bool false
+# quantile_token_loss:
+#   qt_weight: !!float 0.5
+# label_weighted_loss:
+#   tokens_of_interest: *tois
+#   toi_weight: !!float 20.0
 
-time_based_rope:
-  sec_per_pos_id: !!int 300
+# turn off time-based rope for models compatible with generative inference
+# time_based_rope:
+#   sec_per_pos_id: !!int 300
 
 training_args:
   report_to: wandb

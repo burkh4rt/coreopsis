@@ -11,6 +11,6 @@ source ~/.bashrc
 source .venv/bin/activate
 
 cotorra train \
-	--training-config ${config_home}/training.yaml \
+	--training-config ${config_home}/training-generative.yaml \
 	--processed-data-home ./processed/${ds} \
-	--output-home ./output/${ds}-100
+	--output-home ./output/${ds}-gen

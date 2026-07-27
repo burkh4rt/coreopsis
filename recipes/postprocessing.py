@@ -203,22 +203,58 @@ def get_pvals(
 
 
 if __name__ == "__main__":
-    tokenwise_roc_auc, tokenwise_pr_auc = get_all_tokenwise_results(dsets, mdls)
-    tokenwise_roc_auc.to_csv(hm / "tokenwise-roc-auc.csv")
-    tokenwise_pr_auc.to_csv(hm / "tokenwise-pr-auc.csv")
+    # tokenwise_roc_auc, tokenwise_pr_auc = get_all_tokenwise_results(dsets, mdls)
+    # tokenwise_roc_auc.to_csv(hm / "tokenwise-roc-auc.csv")
+    # tokenwise_pr_auc.to_csv(hm / "tokenwise-pr-auc.csv")
 
-    aggregate_roc_cis, aggregate_pr_cis = get_all_cis(dsets, mdls)
-    aggregate_roc_cis.to_csv(hm / "aggregate-roc-cis.csv")
-    aggregate_pr_cis.to_csv(hm / "aggregate-pr-cis.csv")
+    # aggregate_roc_cis, aggregate_pr_cis = get_all_cis(dsets, mdls)
+    # aggregate_roc_cis.to_csv(hm / "aggregate-roc-cis.csv")
+    # aggregate_pr_cis.to_csv(hm / "aggregate-pr-cis.csv")
 
-    for ds in dsets:
-        print(
-            f"{ds=}",
-            get_pvals(ds, "mdl-fedavg10", "mdl-fedavgm10", alternative="one-sided"),
-        )
+    # for ds in dsets:
+    #     print(
+    #         f"{ds=}",
+    #         get_pvals(ds, "mdl-fedavg10", "mdl-fedavgm10", alternative="one-sided"),
+    #     )
 
-    for ds in dsets:
-        print(f"{ds=}", get_pvals(ds, "mdl-fedavg10", "mdl-fedadam10"))
+    # for ds in dsets:
+    #     print(f"{ds=}", get_pvals(ds, "mdl-fedavg10", "mdl-fedadam10"))
 
-    for ds in dsets:
-        print(f"{ds=}", get_pvals(ds, "mdl-fedavgm10", "mdl-fedadam10"))
+    # for ds in dsets:
+    #     print(f"{ds=}", get_pvals(ds, "mdl-fedavgm10", "mdl-fedadam10"))
+
+    for inf, mthd in [
+        ("rep-based", "rep"),
+        ("generative", "mc"),
+        ("generative", "scope"),
+        ("generative", "reach"),
+    ]:
+        print(f"{inf=},{mthd=}")
+        get_all_tokenwise_results(
+            dsets,
+            [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+            inf,
+            mthd,
+        )[0]
+
+
+rep = get_all_tokenwise_results(
+    dsets,
+    [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+    "rep-based",
+    "rep",
+)[0]
+
+reach = get_all_tokenwise_results(
+    dsets,
+    [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+    "generative",
+    "reach",
+)[0]
+
+mc = get_all_tokenwise_results(
+    dsets,
+    [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+    "generative",
+    "mc",
+)[0]

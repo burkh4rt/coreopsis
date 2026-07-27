@@ -193,14 +193,113 @@ for ds in mimic-icu ucmc-icu nu-icu; do
 	done
 done
 
+dsets=(mimic-icu ucmc-icu nu-icu all)
+for ds in "${dsets[@]}"; do
+	sbatch --export=ALL,ds=$ds,config_home=$config_home \
+		recipes/run_generative_training.sh
+done
+
+# run generative federated learning on all datasets
+dsets=(mimic-icu ucmc-icu nu-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home="./output/fedavg10-gen"
+export dsets nsets dsets_cfg output_home
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	recipes/run_generative_federated.sh
+
 # run generative scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
-	for mdl in all/mdl-cotorra \
-		${ds}-100/mdl-cotorra \
-		fedavg10/coreopsis-round-10; do
+	for mdl in all-gen/mdl-cotorra \
+		${ds}-gen/mdl-cotorra; do
 		sbatch --export=ALL,ds=$ds,mdl=$mdl \
 			recipes/run_generative_scoring.sh
 	done
 done
 
+for ds in mimic-icu ucmc-icu nu-icu; do
+	for mdl in fedavg10-gen/coreopsis-round-10; do
+		sbatch --export=ALL,ds=$ds,mdl=$mdl \
+			--dependency=afterok:13191176 \
+			recipes/run_generative_scoring.sh
+	done
+done
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	for mdl in all-gen/mdl-cotorra \
+		${ds}-gen/mdl-cotorra \
+		fedavg10-gen/coreopsis-round-10; do
+		mkdir -p "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+	done
+done
+
 python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		mimic-icu-gen/mdl-cotorra
+		ucmc-icu-gen/mdl-cotorra
+		nu-icu-gen/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
+	done
+done
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		${ds}-gen/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+	done
+done
+
+export ds=mimic-icu
+for mdl in ucmc-icu-gen/mdl-cotorra nu-icu-gen/mdl-cotorra; do
+	sbatch --export=ALL,ds=$ds,mdl=$mdl \
+		recipes/run_generative_scoring.sh
+done
+
+export ds=ucmc-icu
+for mdl in mimic-icu-gen/mdl-cotorra nu-icu-gen/mdl-cotorra; do
+	sbatch --export=ALL,ds=$ds,mdl=$mdl \
+		recipes/run_generative_scoring.sh
+done
+
+export ds=nu-icu
+for mdl in mimic-icu-gen/mdl-cotorra ucmc-icu-gen/mdl-cotorra; do
+	sbatch --export=ALL,ds=$ds,mdl=$mdl \
+		recipes/run_generative_scoring.sh
+done
+
+export config_home=./src/coreopsis/config
+ds=nu-icu
+mdl=fedavg10-gen/coreopsis-round-10
+sbatch --export=ALL,ds=$ds,mdl=$mdl \
+	recipes/run_generative_scoring.sh
+
+export config_home=./src/coreopsis/config
+for ds in mimic-icu ucmc-icu nu-icu; do
+	for mdl in all-gen/mdl-cotorra \
+		${ds}-gen/mdl-cotorra \
+		fedavg10-gen/coreopsis-round-10; do
+		mkdir -p "./processed/${ds}/mdl-$(dirname ${mdl})-100"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})-100"
+		sbatch --export=ALL,ds=$ds,mdl=$mdl \
+			recipes/run_generative_scoring.sh
+	done
+done
