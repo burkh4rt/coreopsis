@@ -65,10 +65,10 @@ for ds in "${dsets[@]}"; do
 	sbatch --export=ALL,ds=$ds,config_home=$config_home \
 		recipes/run_training.sh
 done
-
 # pull out and rename models saved on first 10 100ths and all 10th parts
 # to create ${ds}-{{001..010},{020..100..10}}/mdl-cotorra for each dataset ds
 
+# ablate over server rounds
 for num_server_rounds in 1 5 50 100; do
 	export num_server_rounds
 
@@ -117,6 +117,7 @@ for num_server_rounds in 1 5 50 100; do
 		recipes/run_federated.sh
 done
 
+# ablate over strategy
 for fed_strategy in FedAvgM FedAdam; do
 	export fed_strategy
 	export num_server_rounds=10
@@ -166,40 +167,27 @@ for fed_strategy in FedAvgM FedAdam; do
 		recipes/run_federated.sh
 done
 
-# extract reps for each dataset, for each model
-for ds in mimic-icu ucmc-icu nu-icu; do
-	mdls=(
-		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
-		{mimic-icu-100,ucmc-icu-100,nu-icu-100}/mdl-cotorra
-		fedavg1{,-mc,-mn,-cn}/coreopsis-round-1
-		fedavg5{,-mc,-mn,-cn}/coreopsis-round-5
-		fedavg10{,-mc,-mn,-cn}/coreopsis-round-10
-		fedavg50{,-mc,-mn,-cn}/coreopsis-round-50
-		fedavg100{,-mc,-mn,-cn}/coreopsis-round-100
-		all/mdl-cotorra
-	)
-	for mdl in "${mdls[@]}"; do
-		cotorra extract \
-			--extraction-config ${config_home}/extraction.yaml \
-			--processed-data-home ./processed/${ds} \
-			--model-home ./output/${mdl} \
-			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cotorra rep-based-score \
-			--scoring-config ${config_home}/scoring.yaml \
-			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
-			--model-home ./output/${mdl} \
-			--estimator logistic-CV
-	done
-done
-
+# train generative models (no custom loss, no time-based rope)
 dsets=(mimic-icu ucmc-icu nu-icu all)
 for ds in "${dsets[@]}"; do
 	sbatch --export=ALL,ds=$ds,config_home=$config_home \
 		recipes/run_generative_training.sh
 done
 
-# run generative federated learning on all datasets
+cotorra train \
+	--training-config ${config_home}/training-generative.yaml \
+	--processed-data-home ./processed/${ds} \
+	--output-home ./output/${ds}-gen-big
+
+dsets=(mimic-icu ucmc-icu nu-icu all)
+for ds in "${dsets[@]}"; do
+	cotorra train \
+		--training-config ${config_home}/training-generative.yaml \
+		--processed-data-home ./processed/${ds} \
+		--output-home ./output/${ds}-gen-big
+done
+
+# federate generative models (no custom loss, no time-based rope)
 dsets=(mimic-icu ucmc-icu nu-icu)
 nsets=${#dsets[@]}
 dsets_cfg=$(printf '"%s",' "${dsets[@]}")
@@ -210,39 +198,18 @@ sbatch --export=ALL \
 	--gres=gpu:$nsets \
 	recipes/run_generative_federated.sh
 
-# run generative scoring
-for ds in mimic-icu ucmc-icu nu-icu; do
-	for mdl in all-gen/mdl-cotorra \
-		${ds}-gen/mdl-cotorra; do
-		sbatch --export=ALL,ds=$ds,mdl=$mdl \
-			recipes/run_generative_scoring.sh
-	done
-done
-
-for ds in mimic-icu ucmc-icu nu-icu; do
-	for mdl in fedavg10-gen/coreopsis-round-10; do
-		sbatch --export=ALL,ds=$ds,mdl=$mdl \
-			--dependency=afterok:13191176 \
-			recipes/run_generative_scoring.sh
-	done
-done
-
-for ds in mimic-icu ucmc-icu nu-icu; do
-	for mdl in all-gen/mdl-cotorra \
-		${ds}-gen/mdl-cotorra \
-		fedavg10-gen/coreopsis-round-10; do
-		mkdir -p "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-	done
-done
-
-python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
-
+# rep-based scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
 	mdls=(
-		mimic-icu-gen/mdl-cotorra
-		ucmc-icu-gen/mdl-cotorra
-		nu-icu-gen/mdl-cotorra
+		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
+		{mimic-icu,ucmc-icu,nu-icu}{-100,-gen}/mdl-cotorra
+		fedavg1{,-mc,-mn,-cn}/coreopsis-round-1
+		fedavg5{,-mc,-mn,-cn}/coreopsis-round-5
+		fedavg10{,-mc,-mn,-cn,-gen}/coreopsis-round-10
+		fed{avgm,adam}10/coreopsis-round-10
+		fedavg50{,-mc,-mn,-cn}/coreopsis-round-50
+		fedavg100{,-mc,-mn,-cn}/coreopsis-round-100
+		all{,-gen}/mdl-cotorra
 	)
 	for mdl in "${mdls[@]}"; do
 		cotorra extract \
@@ -259,38 +226,15 @@ for ds in mimic-icu ucmc-icu nu-icu; do
 	done
 done
 
+# run generative scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
-	mdls=(
-		${ds}-gen/mdl-cotorra
-	)
-	for mdl in "${mdls[@]}"; do
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+	for mdl in all-gen/mdl-cotorra \
+		{mimic,ucmc,nu}-icu-gen/mdl-cotorra \
+		fedavg10-gen/coreopsis-round-10; do
+		sbatch --export=ALL,ds=$ds,mdl=$mdl \
+			recipes/run_generative_scoring.sh
 	done
 done
-
-export ds=mimic-icu
-for mdl in ucmc-icu-gen/mdl-cotorra nu-icu-gen/mdl-cotorra; do
-	sbatch --export=ALL,ds=$ds,mdl=$mdl \
-		recipes/run_generative_scoring.sh
-done
-
-export ds=ucmc-icu
-for mdl in mimic-icu-gen/mdl-cotorra nu-icu-gen/mdl-cotorra; do
-	sbatch --export=ALL,ds=$ds,mdl=$mdl \
-		recipes/run_generative_scoring.sh
-done
-
-export ds=nu-icu
-for mdl in mimic-icu-gen/mdl-cotorra ucmc-icu-gen/mdl-cotorra; do
-	sbatch --export=ALL,ds=$ds,mdl=$mdl \
-		recipes/run_generative_scoring.sh
-done
-
-export config_home=./src/coreopsis/config
-ds=nu-icu
-mdl=fedavg10-gen/coreopsis-round-10
-sbatch --export=ALL,ds=$ds,mdl=$mdl \
-	recipes/run_generative_scoring.sh
 
 export config_home=./src/coreopsis/config
 for ds in mimic-icu ucmc-icu nu-icu; do
@@ -301,5 +245,26 @@ for ds in mimic-icu ucmc-icu nu-icu; do
 		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})-100"
 		sbatch --export=ALL,ds=$ds,mdl=$mdl \
 			recipes/run_generative_scoring.sh
+	done
+done
+
+python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		{mimic-icu,ucmc-icu,nu-icu,all}-gen-big/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
 	done
 done

@@ -258,3 +258,10 @@ mc = get_all_tokenwise_results(
     "generative",
     "mc",
 )[0]
+
+get_all_tokenwise_results(
+    dsets,
+    [f"mdl-{ds}-gen-big" for ds in dsets] + ["mdl-all-gen-big"],
+    "rep-based",
+    "rep",
+)[0]
