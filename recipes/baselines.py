@@ -29,7 +29,7 @@ hm = (
     / "bbj-lab/users/burkh4rt"
 )
 
-dsets = ("ucmc-icu", "nu-icu", "mimic-icu")
+dsets = ["ucmc-icu", "nu-icu", "mimic-icu"]
 
 vocab = OmegaConf.load(hm / "processed" / dsets[0] / "tokenizer.yaml").lookup
 
@@ -46,13 +46,13 @@ grokked_outcome_tokens = [
 
 bl_roc_auc = pd.DataFrame(
     index=pd.MultiIndex.from_product(
-        (grokked_outcome_tokens, dsets), names=("token", "train")
+        (grokked_outcome_tokens, dsets + ["all"]), names=("token", "train")
     ),
     columns=dsets,
 )
 bl_pr_auc = bl_roc_auc.copy()
 
-df_held_out, mdls = dict(), dict()
+df_train, df_tuning, df_held_out, mdls = dict(), dict(), dict(), dict()
 
 for ds in dsets:
     lf_train, lf_tuning, lf_held_out = (
@@ -68,11 +68,11 @@ for ds in dsets:
         for split in ("train", "tuning", "held_out")
     )
     for tt in grokked_outcome_tokens:
-        df_train, df_tuning, df_held_out[(tt, ds)] = (
+        df_train[(tt, ds)], df_tuning[(tt, ds)], df_held_out[(tt, ds)] = (
             lf.filter(~pl.col(f"{tt}_past"))
             .select(
-                "age_at_admission",
-                "n_tokens_first_24h",
+                # "age_at_admission",
+                # "n_tokens_first_24h",
                 *[f"count_{v}" for v in vocab.values()],
                 f"{tt}_future",
             )
@@ -82,18 +82,34 @@ for ds in dsets:
         )
         mdls[(tt, ds)] = lgb.LGBMClassifier(n_jobs=-1)
         mdls[(tt, ds)].fit(
-            X=df_train.drop(columns=f"{tt}_future"),
-            y=df_train[f"{tt}_future"].astype(int),
+            X=df_train[(tt, ds)].drop(columns=f"{tt}_future"),
+            y=df_train[(tt, ds)][f"{tt}_future"].astype(int),
             eval_set=[
                 (
-                    df_tuning.drop(columns=f"{tt}_future"),
-                    df_tuning[f"{tt}_future"].astype(int),
+                    df_tuning[(tt, ds)].drop(columns=f"{tt}_future"),
+                    df_tuning[(tt, ds)][f"{tt}_future"].astype(int),
                 )
             ],
             eval_metric="auc",
         )
 
-for ds_train in dsets:
+for tt in grokked_outcome_tokens:
+    df_train_all = pd.concat(df_train[(tt, ds)] for ds in dsets)
+    df_tuning_all = pd.concat(df_tuning[(tt, ds)] for ds in dsets)
+    mdls[(tt, "all")] = lgb.LGBMClassifier(n_jobs=-1)
+    mdls[(tt, "all")].fit(
+        X=df_train_all.drop(columns=f"{tt}_future"),
+        y=df_train_all[f"{tt}_future"].astype(int),
+        eval_set=[
+            (
+                df_tuning_all.drop(columns=f"{tt}_future"),
+                df_tuning_all[f"{tt}_future"].astype(int),
+            )
+        ],
+        eval_metric="auc",
+    )
+
+for ds_train in dsets + ["all"]:
     for ds_test in dsets:
         for tt in grokked_outcome_tokens:
             yt = df_held_out[(tt, ds_test)][f"{tt}_future"].astype(int)
@@ -105,3 +121,6 @@ for ds_train in dsets:
                 yt, np.round(ys, decimals=4), drop_intermediate=True
             )
             bl_pr_auc.loc[(tt, ds_train), ds_test] = skl_mets.auc(recs, precs)
+
+print(bl_roc_auc)
+print(bl_pr_auc)
