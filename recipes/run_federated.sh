@@ -4,7 +4,7 @@
 #SBATCH --output=./logs/training-%j.stdout
 #SBATCH --partition=gpuq
 #SBATCH --gres=gpu:3
-#SBATCH --qos=bbj-wan_priority
+#SBATCH --qos=nonpreemptible
 #SBATCH --time=12:00:00
 
 source ~/.bashrc
@@ -17,7 +17,7 @@ coreopsis run . standard \
 				 'output-home'='${output_home:-./output/c-fedavg10}'
 				 'num-server-rounds'=${num_server_rounds:-10}
 				 'datasets'='[$dsets_cfg]'
-				 'training-config'='./src/coreopsis/config/training.yaml'
+				 'training-config'='./src/coreopsis/config/training-no-ckpts.yaml'
 				 " \
 	--federation-config "
 						options.num-supernodes=${nsets}

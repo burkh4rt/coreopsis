@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-gather stats on training sets
+gather stats
 """
 
 import importlib.resources as resources
