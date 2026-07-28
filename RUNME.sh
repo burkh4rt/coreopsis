@@ -77,7 +77,7 @@ for num_server_rounds in 1 5 50 100; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/fedavg${num_server_rounds}"
+	output_home="./output/c-fedavg${num_server_rounds}"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
@@ -88,7 +88,7 @@ for num_server_rounds in 1 5 50 100; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/fedavg${num_server_rounds}-mc"
+	output_home="./output/c-fedavg${num_server_rounds}-mc"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
@@ -99,7 +99,7 @@ for num_server_rounds in 1 5 50 100; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/fedavg${num_server_rounds}-mn"
+	output_home="./output/c-fedavg${num_server_rounds}-mn"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
@@ -110,7 +110,7 @@ for num_server_rounds in 1 5 50 100; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/fedavg${num_server_rounds}-cn"
+	output_home="./output/c-fedavg${num_server_rounds}-cn"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
@@ -127,7 +127,7 @@ for fed_strategy in FedAvgM FedAdam; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/${fed_strategy,,}${num_server_rounds}"
+	output_home="./output/c-${fed_strategy,,}${num_server_rounds}"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
@@ -138,7 +138,7 @@ for fed_strategy in FedAvgM FedAdam; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/${fed_strategy,,}${num_server_rounds}-mc"
+	output_home="./output/c-${fed_strategy,,}${num_server_rounds}-mc"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
@@ -149,7 +149,7 @@ for fed_strategy in FedAvgM FedAdam; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/${fed_strategy,,}${num_server_rounds}-mn"
+	output_home="./output/c-${fed_strategy,,}${num_server_rounds}-mn"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
@@ -160,43 +160,12 @@ for fed_strategy in FedAvgM FedAdam; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/${fed_strategy,,}${num_server_rounds}-cn"
+	output_home="./output/c-${fed_strategy,,}${num_server_rounds}-cn"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
 		recipes/run_federated.sh
 done
-
-# train generative models (no custom loss, no time-based rope)
-dsets=(mimic-icu ucmc-icu nu-icu all)
-for ds in "${dsets[@]}"; do
-	sbatch --export=ALL,ds=$ds,config_home=$config_home \
-		recipes/run_generative_training.sh
-done
-
-cotorra train \
-	--training-config ${config_home}/training-generative.yaml \
-	--processed-data-home ./processed/${ds} \
-	--output-home ./output/${ds}-gen-big
-
-dsets=(mimic-icu ucmc-icu nu-icu all)
-for ds in "${dsets[@]}"; do
-	cotorra train \
-		--training-config ${config_home}/training-generative.yaml \
-		--processed-data-home ./processed/${ds} \
-		--output-home ./output/${ds}-gen-big
-done
-
-# federate generative models (no custom loss, no time-based rope)
-dsets=(mimic-icu ucmc-icu nu-icu)
-nsets=${#dsets[@]}
-dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-dsets_cfg=${dsets_cfg%,}
-output_home="./output/fedavg10-gen"
-export dsets nsets dsets_cfg output_home
-sbatch --export=ALL \
-	--gres=gpu:$nsets \
-	recipes/run_generative_federated.sh
 
 # rep-based scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
@@ -236,35 +205,4 @@ for ds in mimic-icu ucmc-icu nu-icu; do
 	done
 done
 
-export config_home=./src/coreopsis/config
-for ds in mimic-icu ucmc-icu nu-icu; do
-	for mdl in all-gen/mdl-cotorra \
-		${ds}-gen/mdl-cotorra \
-		fedavg10-gen/coreopsis-round-10; do
-		mkdir -p "./processed/${ds}/mdl-$(dirname ${mdl})-100"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})-100"
-		sbatch --export=ALL,ds=$ds,mdl=$mdl \
-			recipes/run_generative_scoring.sh
-	done
-done
-
 python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
-
-for ds in mimic-icu ucmc-icu nu-icu; do
-	mdls=(
-		{mimic-icu,ucmc-icu,nu-icu,all}-gen-big/mdl-cotorra
-	)
-	for mdl in "${mdls[@]}"; do
-		cotorra extract \
-			--extraction-config ${config_home}/extraction.yaml \
-			--processed-data-home ./processed/${ds} \
-			--model-home ./output/${mdl} \
-			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cotorra rep-based-score \
-			--scoring-config ${config_home}/scoring.yaml \
-			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
-			--model-home ./output/${mdl} \
-			--estimator logistic-CV
-	done
-done

@@ -18,7 +18,7 @@ tokens_of_interest: &tois
 
 score:
   max_len: *max_len
-  n_samp: !!int 20 # MC samples per input per trajectory type
+  n_samp: !!int 100 # MC samples per input per trajectory type
   target_tokens: *tois # token-based outcomes of interest
   end_tokens: # tokens that naturally terminate a sequence
     - EOS
