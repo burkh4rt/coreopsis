@@ -82,40 +82,42 @@ for num_server_rounds in 1 5 50 100; do
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
 		recipes/run_federated.sh
-
-	# federated mimic + chicago
-	dsets=(mimic-icu ucmc-icu)
-	nsets=${#dsets[@]}
-	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/c-fedavg${num_server_rounds}-mc"
-	export dsets nsets dsets_cfg output_home
-	sbatch --export=ALL \
-		--gres=gpu:$nsets \
-		recipes/run_federated.sh
-
-	# federated mimic + nu
-	dsets=(mimic-icu nu-icu)
-	nsets=${#dsets[@]}
-	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/c-fedavg${num_server_rounds}-mn"
-	export dsets nsets dsets_cfg output_home
-	sbatch --export=ALL \
-		--gres=gpu:$nsets \
-		recipes/run_federated.sh
-
-	# federated nu + chicago
-	dsets=(ucmc-icu nu-icu)
-	nsets=${#dsets[@]}
-	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/c-fedavg${num_server_rounds}-cn"
-	export dsets nsets dsets_cfg output_home
-	sbatch --export=ALL \
-		--gres=gpu:$nsets \
-		recipes/run_federated.sh
 done
+
+export num_server_rounds=10
+
+# federated mimic + chicago
+dsets=(mimic-icu ucmc-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home="./output/c-fedavg${num_server_rounds}-mc"
+export dsets nsets dsets_cfg output_home
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
+
+# federated mimic + nu
+dsets=(mimic-icu nu-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home="./output/c-fedavg${num_server_rounds}-mn"
+export dsets nsets dsets_cfg output_home
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
+
+# federated nu + chicago
+dsets=(ucmc-icu nu-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home="./output/c-fedavg${num_server_rounds}-cn"
+export dsets nsets dsets_cfg output_home
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	recipes/run_federated.sh
 
 # ablate over strategy
 for fed_strategy in FedAvgM FedAdam; do
@@ -127,40 +129,7 @@ for fed_strategy in FedAvgM FedAdam; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/c-${fed_strategy,,}${num_server_rounds}"
-	export dsets nsets dsets_cfg output_home
-	sbatch --export=ALL \
-		--gres=gpu:$nsets \
-		recipes/run_federated.sh
-
-	# federated mimic + chicago
-	dsets=(mimic-icu ucmc-icu)
-	nsets=${#dsets[@]}
-	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/c-${fed_strategy,,}${num_server_rounds}-mc"
-	export dsets nsets dsets_cfg output_home
-	sbatch --export=ALL \
-		--gres=gpu:$nsets \
-		recipes/run_federated.sh
-
-	# federated mimic + nu
-	dsets=(mimic-icu nu-icu)
-	nsets=${#dsets[@]}
-	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/c-${fed_strategy,,}${num_server_rounds}-mn"
-	export dsets nsets dsets_cfg output_home
-	sbatch --export=ALL \
-		--gres=gpu:$nsets \
-		recipes/run_federated.sh
-
-	# federated nu + chicago
-	dsets=(ucmc-icu nu-icu)
-	nsets=${#dsets[@]}
-	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/c-${fed_strategy,,}${num_server_rounds}-cn"
+	output_home="./output/cc-${fed_strategy,,}${num_server_rounds}"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \

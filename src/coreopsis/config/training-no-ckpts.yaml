@@ -25,14 +25,14 @@ wandb:
 custom_loss: !!bool false
 
 training_args:
-  report_to: wandb
+  report_to: none # wandb
   run_name: *run_name
   per_device_train_batch_size: !!int 4
   per_device_eval_batch_size: !!int 4
   save_total_limit: !!int 101
-  metric_for_best_model: eval_loss
-  load_best_model_at_end: !!bool true
-  greater_is_better: !!bool false
+  # metric_for_best_model: eval_loss
+  # load_best_model_at_end: !!bool true
+  # greater_is_better: !!bool false
   ## uncomment the following for benchmarking base models
   # eval_strategy: steps # keep eval/save in sync for load_best_model_at_end
   # eval_steps: !!float 0.01 # evaluate every 1/100th of total training steps (1 epoch run)

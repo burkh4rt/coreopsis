@@ -31,6 +31,9 @@ hm = (
     / "bbj-lab/users/burkh4rt"
 )
 
+counts = True  # moving to boolean indicators slightly depresses intrasite
+# performance but improves transfer
+
 dsets = ["ucmc-icu", "nu-icu", "mimic-icu"]
 
 vocab = OmegaConf.load(hm / "processed" / dsets[0] / "tokenizer.yaml").lookup
@@ -67,6 +70,8 @@ for ds in dsets:
             pl.col("tokens_past").list.len().alias("n_tokens_first_24h"),
             *[
                 pl.col("tokens_past").list.count_matches(v).alias(f"count_{v}")
+                if counts
+                else pl.col("tokens_past").list.contains(v).alias(f"has_{v}")
                 for v in vocab.values()
             ],
         )
@@ -78,7 +83,7 @@ for ds in dsets:
             .select(
                 # "age_at_admission",
                 # "n_tokens_first_24h",
-                *[f"count_{v}" for v in vocab.values()],
+                *[f"count_{v}" if counts else f"has_{v}" for v in vocab.values()],
                 f"{tt}_future",
             )
             .collect()
@@ -135,14 +140,21 @@ for ds_train in dsets + ["all"]:
         bl_roc_agg.loc[ds_train, ds_test] = cis["avg_roc_auc"]
         bl_pr_agg.loc[ds_train, ds_test] = cis["avg_pr_auc"]
 
+
+def re_fmt_ci(s, p=3):
+    """Format a numpy CI (e.g. "[0.76768137, 0.79238952]") to p decimals."""
+    lo, hi = min(s), max(s)
+    return f"{(lo + hi) / 2:.{p}f} (±{(hi - lo) / 2:.{p}f})"
+
+
 print(bl_roc_auc)
 print(bl_pr_auc)
 
-print(bl_roc_agg)
-print(bl_pr_agg)
+print(bl_roc_agg.map(re_fmt_ci).to_latex())
+print(bl_pr_agg.map(re_fmt_ci).to_latex())
 
-bl_roc_auc.to_csv(hm / "bl-roc-auc.csv")
-bl_pr_auc.to_csv(hm / "bl-pr-auc.csv")
+bl_roc_auc.to_csv(hm / f"bl-roc-auc{'' if counts else '-1h'}.csv")
+bl_pr_auc.to_csv(hm / f"bl-pr-auc{'' if counts else '-1h'}.csv")
 
-bl_roc_agg.to_csv(hm / "bl-roc-agg.csv")
-bl_pr_agg.to_csv(hm / "bl-pr-agg.csv")
+bl_roc_agg.to_csv(hm / f"bl-roc-agg{'' if counts else '-1h'}.csv")
+bl_pr_agg.to_csv(hm / f"bl-pr-agg{'' if counts else '-1h'}.csv")
