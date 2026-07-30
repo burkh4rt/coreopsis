@@ -13,6 +13,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import polars as pl
+import sklearn as skl
 from omegaconf import OmegaConf
 from sklearn import metrics as skl_mets
 
@@ -31,8 +32,13 @@ hm = (
     / "bbj-lab/users/burkh4rt"
 )
 
-counts = True  # moving to boolean indicators slightly depresses intrasite
-# performance but improves transfer
+# option flags --
+counts = (
+    True  # false is boolean
+    # moving to boolean indicators slightly depresses intrasite performance
+    # but improves transfer
+)
+lgbm = True  # false is cross-validated logistic regression
 
 dsets = ["ucmc-icu", "nu-icu", "mimic-icu"]
 
@@ -90,33 +96,41 @@ for ds in dsets:
             .to_pandas()
             for lf in (lf_train, lf_tuning, lf_held_out)
         )
-        mdls[(tt, ds)] = lgb.LGBMClassifier(n_jobs=-1)
+        mdls[(tt, ds)] = (
+            lgb.LGBMClassifier(n_jobs=-1)
+            if lgbm
+            else skl.linear_model.LogisticRegression(max_iter=10_000)
+        )
         mdls[(tt, ds)].fit(
             X=df_train[(tt, ds)].drop(columns=f"{tt}_future"),
             y=df_train[(tt, ds)][f"{tt}_future"].astype(int),
-            eval_set=[
-                (
-                    df_tuning[(tt, ds)].drop(columns=f"{tt}_future"),
-                    df_tuning[(tt, ds)][f"{tt}_future"].astype(int),
-                )
-            ],
-            eval_metric="auc",
+            # eval_set=[
+            #     (
+            #         df_tuning[(tt, ds)].drop(columns=f"{tt}_future"),
+            #         df_tuning[(tt, ds)][f"{tt}_future"].astype(int),
+            #     )
+            # ],
+            # eval_metric="auc",
         )
 
 for tt in grokked_outcome_tokens:
     df_train_all = pd.concat(df_train[(tt, ds)] for ds in dsets)
     df_tuning_all = pd.concat(df_tuning[(tt, ds)] for ds in dsets)
-    mdls[(tt, "all")] = lgb.LGBMClassifier(n_jobs=-1)
+    mdls[(tt, "all")] = (
+        lgb.LGBMClassifier(n_jobs=-1)
+        if lgbm
+        else skl.linear_model.LogisticRegression(max_iter=10_000)
+    )
     mdls[(tt, "all")].fit(
         X=df_train_all.drop(columns=f"{tt}_future"),
         y=df_train_all[f"{tt}_future"].astype(int),
-        eval_set=[
-            (
-                df_tuning_all.drop(columns=f"{tt}_future"),
-                df_tuning_all[f"{tt}_future"].astype(int),
-            )
-        ],
-        eval_metric="auc",
+        # eval_set=[
+        #     (
+        #         df_tuning_all.drop(columns=f"{tt}_future"),
+        #         df_tuning_all[f"{tt}_future"].astype(int),
+        #     )
+        # ],
+        # eval_metric="auc",
     )
 
 for ds_train in dsets + ["all"]:

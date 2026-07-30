@@ -65,14 +65,21 @@ for ds in "${dsets[@]}"; do
 	sbatch --export=ALL,ds=$ds,config_home=$config_home \
 		recipes/run_training.sh
 done
-# pull out and rename models saved on first 10 100ths and all 10th parts
-# to create ${ds}-{{001..010},{020..100..10}}/mdl-cotorra for each dataset ds
+
+# pull out and rename models saved at each 1/100th part of the data
+for c in c-{ucmc,nu,mimic}-icu; do
+	i=0
+	for d in $(ls -dtr ./output/$c/checkpoint-*); do
+		printf -v new "./output/$c-%03d" "$((++i))"
+		mkdir -p "$new/mdl-cotorra" && cp -a "$d/." "$new/mdl-cotorra"
+	done
+	mkdir -p ./output/$c-100/mdl-cotorra
+	cp -a ./output/$c/mdl-cotorra/. ./output/$c-100/mdl-cotorra
+done
 
 # ablate over server rounds
-for num_server_rounds in 1 5 50 100; do
+for num_server_rounds in 1 5 50; do
 	export num_server_rounds
-
-	# run federated learning on all datasets
 	dsets=(mimic-icu ucmc-icu nu-icu)
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
@@ -85,7 +92,6 @@ for num_server_rounds in 1 5 50 100; do
 done
 
 export num_server_rounds=10
-
 # federated mimic + chicago
 dsets=(mimic-icu ucmc-icu)
 nsets=${#dsets[@]}
@@ -129,25 +135,116 @@ for fed_strategy in FedAvgM FedAdam; do
 	nsets=${#dsets[@]}
 	dsets_cfg=$(printf '"%s",' "${dsets[@]}")
 	dsets_cfg=${dsets_cfg%,}
-	output_home="./output/cc-${fed_strategy,,}${num_server_rounds}"
+	output_home="./output/c-${fed_strategy,,}${num_server_rounds}"
 	export dsets nsets dsets_cfg output_home
 	sbatch --export=ALL \
 		--gres=gpu:$nsets \
 		recipes/run_federated.sh
 done
 
+export fed_strategy=FedAvg
+export num_server_rounds=100
+
+# run federated learning on all datasets
+dsets=(mimic-icu ucmc-icu nu-icu)
+nsets=${#dsets[@]}
+dsets_cfg=$(printf '"%s",' "${dsets[@]}")
+dsets_cfg=${dsets_cfg%,}
+output_home="./output/c-${fed_strategy,,}${num_server_rounds}"
+export dsets nsets dsets_cfg output_home
+sbatch --export=ALL \
+	--gres=gpu:$nsets \
+	--partition=bbj-wanq \
+	--qos=bbj-wan_priority \
+	--time=8:00:00 \
+	recipes/run_federated.sh
+
 # rep-based scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
 	mdls=(
-		${ds}-{{001..010},{020..100..10}}/mdl-cotorra
-		{mimic-icu,ucmc-icu,nu-icu}{-100,-gen}/mdl-cotorra
-		fedavg1{,-mc,-mn,-cn}/coreopsis-round-1
-		fedavg5{,-mc,-mn,-cn}/coreopsis-round-5
-		fedavg10{,-mc,-mn,-cn,-gen}/coreopsis-round-10
-		fed{avgm,adam}10/coreopsis-round-10
-		fedavg50{,-mc,-mn,-cn}/coreopsis-round-50
-		fedavg100{,-mc,-mn,-cn}/coreopsis-round-100
-		all{,-gen}/mdl-cotorra
+		c-{mimic-icu,ucmc-icu,nu-icu}/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
+	done
+done
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		c-${ds}-{{001..010},{020..100..10}}/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
+	done
+done
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		c-${ds}-{015..100..10}/mdl-cotorra
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
+	done
+done
+
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		c-fedavg50/coreopsis-round-50
+	)
+	for mdl in "${mdls[@]}"; do
+		cotorra extract \
+			--extraction-config ${config_home}/extraction.yaml \
+			--processed-data-home ./processed/${ds} \
+			--model-home ./output/${mdl} \
+			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
+		cotorra rep-based-score \
+			--scoring-config ${config_home}/scoring.yaml \
+			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
+			--model-home ./output/${mdl} \
+			--estimator logistic-CV
+	done
+done
+
+# rep-based scoring
+for ds in mimic-icu ucmc-icu nu-icu; do
+	mdls=(
+		c-fedavg1/coreopsis-round-1
+		c-fedavg5/coreopsis-round-5
+		c-fedavg10{,-mc,-mn,-cn}/coreopsis-round-10
+		c-fed{avgm,adam}10/coreopsis-round-10
+		c-fedavg50/coreopsis-round-50
+		c-all/mdl-cotorra
 	)
 	for mdl in "${mdls[@]}"; do
 		cotorra extract \
@@ -165,13 +262,21 @@ for ds in mimic-icu ucmc-icu nu-icu; do
 done
 
 # run generative scoring
-for ds in mimic-icu ucmc-icu nu-icu; do
-	for mdl in all-gen/mdl-cotorra \
-		{mimic,ucmc,nu}-icu-gen/mdl-cotorra \
-		fedavg10-gen/coreopsis-round-10; do
+for ds in ucmc-icu; do
+	for mdl in c-all/mdl-cotorra \
+		c-ucmc-icu/mdl-cotorra \
+		c-fedavg10/coreopsis-round-10; do
 		sbatch --export=ALL,ds=$ds,mdl=$mdl \
 			recipes/run_generative_scoring.sh
 	done
 done
 
 python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
+
+ds=nu-icu
+mdl=c-all/mdl-cotorra
+sbatch --export=ALL,ds=$ds,mdl=$mdl \
+	--partition=bbj-wanq \
+	--qos=bbj-wan_priority \
+	--time=8:00:00 \
+	recipes/run_generative_scoring.sh

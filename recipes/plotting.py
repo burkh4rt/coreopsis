@@ -61,7 +61,7 @@ colors = {
 COL_CURVE = colors["dark_greystone"]  #  site-trained sweep
 COL_OTHER = colors["ivy"]  # fedavg on the other two sites
 COL_FED = colors["brick"]  # fedavg on all three sites
-COL_ALL = colors["dark_goldenrod"]  # single model pooled over all data
+COL_ALL = colors["goldenrod_dark"]  # single model pooled over all data
 
 # uniform label/mark sizing after rescaling:
 # each figure is exported at its own pixel width (multi-panel vs. single panel)
@@ -79,14 +79,14 @@ BAND_ALPHA = 0.06  # translucent fill for the baseline confidence bands
 # dataset -> (display name, fedavg model trained on the *other two* sites,
 #             full training-set size)
 plot_dsets = {
-    "ucmc-icu": ("UCMC", "mdl-fedavg10-mn", 15399),  # other two = mimic + nu
-    "nu-icu": ("NU", "mdl-fedavg10-mc", 46030),  # other two = mimic + ucmc
-    "mimic-icu": ("MIMIC", "mdl-fedavg10-cn", 24146),  # other two = ucmc + nu
+    "ucmc-icu": ("UCMC", "mdl-c-fedavg10-mn", 15399),  # other two = mimic + nu
+    "nu-icu": ("NU", "mdl-c-fedavg10-mc", 46030),  # other two = mimic + ucmc
+    "mimic-icu": ("MIMIC", "mdl-c-fedavg10-cn", 24146),  # other two = ucmc + nu
 }
 
 # numerators (out of 100) of the fractions of each site's data that were used:
-# 1..9 percent, then 10, 20, ..., 100 percent -> model suffix is the 3-digit value
-frac_nums = list(range(1, 10)) + list(range(10, 101, 10))
+# 1..10 percent, then 20, ..., 100 percent -> model suffix is the 3-digit value
+frac_nums = list(range(1, 11)) + list(range(20, 110, 10))
 fracs = [n / 100 for n in frac_nums]
 
 # common lower bound for the (log) x-axes: smallest sample count plotted anywhere
@@ -97,7 +97,7 @@ x_tickvals = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000]
 x_ticktext = ["200", "500", "1k", "2k", "5k", "10k", "20k", "50k"]
 
 # number of federation rounds swept during training -> model suffix
-fed_rounds = [1, 5, 10, 50, 100]
+fed_rounds = [1, 5, 10, 50]
 
 # dataset -> (display name, color); per-dataset palette, independent of the
 # role-based palette used by the data-fraction plots above
@@ -106,6 +106,13 @@ round_dsets = {
     "nu-icu": ("NU", colors["terracotta"]),  # terracotta
     "mimic-icu": ("MIMIC", colors["forest"]),  # forest
 }
+
+# postprocessing writes one bootstrap-CI table per experiment ('{exp}-{roc,pr}.csv');
+# each figure below reads only the table for the experiment that produced its
+# models, so every point within a figure comes from the same bootstrap run
+NAN_CI = (float("nan"), float("nan"))
+
+missing = []  # (metric, model, dataset) triples absent from the CI tables
 
 
 def rgba(hex_color, alpha):
@@ -121,42 +128,55 @@ def load_cis(csv_name):
 
     def parse(s):
         if pd.isna(s):
-            return (float("nan"), float("nan"))
+            return NAN_CI
         lo, hi = (float(x) for x in str(s).strip("[]").split())
         return (lo, hi)
 
     return pd.read_csv(hm / csv_name, index_col=0).rename_axis("models").map(parse)
 
 
-def make_error_y(centers, cis, color, s):
+def get_ci(ci, mdl, ds, metric_slug):
+    """CI tuple for one model × dataset, tolerating models that have not been
+    scored yet: those plot as gaps and are reported at the end."""
+    if mdl in ci.index:
+        lo, hi = ci.loc[mdl, ds]
+        if not (math.isnan(lo) or math.isnan(hi)):
+            return (lo, hi)
+    missing.append((metric_slug, mdl, ds))
+    return NAN_CI
+
+
+def center(ci_tuple):
+    """point estimate = midpoint of the bootstrap CI (matches how the tables
+    in the manuscript are formatted by postprocessing.re_fmt_ci)"""
+    lo, hi = ci_tuple
+    return (lo + hi) / 2
+
+
+def make_error_y(cis, color, s):
     """asymmetric plotly error bars from bootstrap (lo, hi) CI tuples,
-    measured off each plotted center (the mean over tokens)."""
+    measured off each plotted center (the CI midpoint)."""
     return dict(
         type="data",
         symmetric=False,
-        array=[hi - c for c, (lo, hi) in zip(centers, cis)],
-        arrayminus=[c - lo for c, (lo, hi) in zip(centers, cis)],
+        array=[hi - center((lo, hi)) for lo, hi in cis],
+        arrayminus=[center((lo, hi)) - lo for lo, hi in cis],
         color=color,
         thickness=LINE_WIDTH * s,
         width=MARKER_SIZE * s * 0.6,
     )
 
 
-# metric -> (results csv, aggregate-CI csv, axis/title label, output slug)
-metrics = [
-    ("tokenwise-roc-auc.csv", "aggregate-roc-cis.csv", "ROC-AUC", "roc-auc"),
-    ("tokenwise-pr-auc.csv", "aggregate-pr-cis.csv", "PR-AUC", "pr-auc"),
-]
+# metric -> (CI csv suffix, axis/title label, output slug)
+metrics = [("roc", "ROC-AUC", "roc-auc"), ("pr", "PR-AUC", "pr-auc")]
 
-for csv_name, ci_csv, metric_label, metric_slug in metrics:
-    results = pd.read_csv(hm / csv_name)
-    ci = load_cis(ci_csv)
-
+for metric_key, metric_label, metric_slug in metrics:
     # -----------------------------------------------------------------------
     # performance vs. fraction of a site's training data, with fed baselines
     # -----------------------------------------------------------------------
-    # aggregate over all tokens
-    agg = results.set_index(["token", "models"]).groupby("models").mean()
+    # frac-* carries the fraction sweep plus the fed / pooled baselines it is
+    # compared against
+    ci = load_cis(f"frac-{metric_key}.csv")
 
     fig_width = 900
     s = fig_width / REF_WIDTH  # scale factor for all sized elements
@@ -183,13 +203,13 @@ for csv_name, ci_csv, metric_label, metric_slug in metrics:
         # horizontal federated / pooled baselines (model looked up per site)
         baselines = [
             ("fedavg (other two sites)", other_fed, COL_OTHER),
-            ("fedavg (all three sites)", "mdl-fedavg10", COL_FED),
-            ("all data (pooled)", "mdl-all", COL_ALL),
+            ("fedavg (all three sites)", "mdl-c-fedavg10", COL_FED),
+            ("all data (pooled)", "mdl-c-all", COL_ALL),
         ]
 
         # 95% CI bands for the baselines, drawn behind everything else
         for label, mdl, color in baselines:
-            lo, hi = ci.loc[mdl, ds]
+            lo, hi = get_ci(ci, mdl, ds, metric_slug)
             fig.add_trace(
                 go.Scatter(
                     x=[sizes[0], sizes[-1], sizes[-1], sizes[0]],
@@ -208,19 +228,20 @@ for csv_name, ci_csv, metric_label, metric_slug in metrics:
 
         # site-trained sweep over increasing fractions of this site's data,
         # with asymmetric 95% CI error bars on each point
-        curve = [agg.loc[f"mdl-{ds}-{n:03d}", ds] for n in frac_nums]
-        curve_ci = [ci.loc[f"mdl-{ds}-{n:03d}", ds] for n in frac_nums]
+        curve_ci = [
+            get_ci(ci, f"mdl-c-{ds}-{n:03d}", ds, metric_slug) for n in frac_nums
+        ]
         fig.add_trace(
             go.Scatter(
                 x=sizes,
-                y=curve,
+                y=[center(c) for c in curve_ci],
                 mode="lines+markers",
                 name="site-trained",
                 legendgroup="site-trained",
                 showlegend=show,
                 line=dict(color=COL_CURVE, width=LINE_WIDTH * s),
                 marker=dict(size=MARKER_SIZE * s, color=COL_CURVE),
-                error_y=make_error_y(curve, curve_ci, COL_CURVE, s),
+                error_y=make_error_y(curve_ci, COL_CURVE, s),
             ),
             row=1,
             col=col,
@@ -228,7 +249,7 @@ for csv_name, ci_csv, metric_label, metric_slug in metrics:
 
         # baseline center lines drawn on top of their CI bands
         for label, mdl, color in baselines:
-            val = agg.loc[mdl, ds]
+            val = center(get_ci(ci, mdl, ds, metric_slug))
             fig.add_trace(
                 go.Scatter(
                     x=[sizes[0], sizes[-1]],
@@ -274,25 +295,24 @@ for csv_name, ci_csv, metric_label, metric_slug in metrics:
     # -----------------------------------------------------------------------
     # average performance vs. number of federation rounds (all-site FedAvg)
     # -----------------------------------------------------------------------
-    # one line per dataset, mean metric averaged over outcome tokens
-    agg = results.set_index(["token", "models"]).groupby("models").mean()
+    # one line per dataset, metric aggregated over outcome tokens
+    ci = load_cis(f"rnds-{metric_key}.csv")
 
     fig_width = 650
     s = fig_width / REF_WIDTH  # scale factor for all sized elements
 
     fig = go.Figure()
     for ds, (name, color) in round_dsets.items():
-        curve = [agg.loc[f"mdl-fedavg{n}", ds] for n in fed_rounds]
-        curve_ci = [ci.loc[f"mdl-fedavg{n}", ds] for n in fed_rounds]
+        curve_ci = [get_ci(ci, f"mdl-c-fedavg{n}", ds, metric_slug) for n in fed_rounds]
         fig.add_trace(
             go.Scatter(
                 x=fed_rounds,
-                y=curve,
+                y=[center(c) for c in curve_ci],
                 mode="lines+markers",
                 name=name,
                 line=dict(color=color, width=LINE_WIDTH * s),
                 marker=dict(size=MARKER_SIZE * s, color=color),
-                error_y=make_error_y(curve, curve_ci, color, s),
+                error_y=make_error_y(curve_ci, color, s),
             )
         )
 
@@ -320,3 +340,8 @@ for csv_name, ci_csv, metric_label, metric_slug in metrics:
         height=570,
     )
     fig.write_image(hm / f"fed-rounds-sweep-{metric_slug}.pdf")
+
+if missing:
+    print(f"\n{len(missing)} model × dataset CIs missing (plotted as gaps):")
+    for metric_slug, mdl, ds in sorted(set(missing)):
+        print(f"  {metric_slug}: {mdl} × {ds}")

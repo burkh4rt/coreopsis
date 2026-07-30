@@ -1,6 +1,9 @@
 [project]
     authors = [
         { name = "Michael C. Burkhart", email = "burkh4rt@uchicago.edu" },
+        { name = "Luke Solo", email = "lsolo@uchicago.edu" },
+        { name = "Inhyeok Lee", email = "ihlee@uchicago.edu" },
+        { name = "S'Khaja Charles", email = "skhaja@uchicago.edu" },
         { name = "Brett K. Beaulieu-Jones", email = "beaulieujones@uchicago.edu" },
     ]
     classifiers = [
@@ -13,8 +16,8 @@
         "accelerate==0.34.2",
         "click<8.2",
         "clifpy @ git+https://github.com/burkh4rt/clifpy.git@utc-fix",
-        "cocoa-tokenizer",
-        "cotorra @ git+https://github.com/bbj-lab/cotorra.git",
+        "cocoa-tokenizer==26.6.2",
+        "cotorra==26.6.3",
         "flwr[simulation]==1.18.0",
         "huggingface_hub>=0.23.2,<1.0",
         "kaleido",

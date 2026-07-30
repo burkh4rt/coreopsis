@@ -33,25 +33,6 @@ hm = (
 
 dsets = ("ucmc-icu", "nu-icu", "mimic-icu")
 
-mdls = list(
-    {
-        f"mdl-fedavg{n}{sfx}"
-        for n in (1, 5, 10, 50, 100)
-        for sfx in ("", "-mc", "-mn", "-cn")
-    }
-    | {
-        f"mdl-{ds}-{i:03d}"
-        for i in list(range(1, 11)) + list(range(20, 110, 10))
-        for ds in dsets
-    }
-    | {
-        f"mdl-{inference}10{sfx}"
-        for sfx in ("", "-mc", "-mn", "-cn")
-        for inference in ("fedavg", "fedavgm", "fedadam")
-    }
-    | {"mdl-all"}
-)
-
 grokked_outcome_tokens = [
     x
     for x in OmegaConf.load(
@@ -202,15 +183,61 @@ def get_pvals(
     return float(cis["avg_roc_auc"]), float(cis["avg_pr_auc"])
 
 
+def re_fmt_ci(s, p=3):
+    """Format a numpy CI (e.g. "[0.76768137, 0.79238952]") to p decimals."""
+    lo, hi = min(s), max(s)
+    return f"{(lo + hi) / 2:.{p}f} (±{(hi - lo) / 2:.{p}f})"
+
+
+"""
+transfer
+"""
+xfer_roc, xfer_pr = get_all_cis(dsets, [f"mdl-c-{ds}" for ds in dsets])
+print(xfer_roc.map(re_fmt_ci).to_latex())
+print(xfer_pr.map(re_fmt_ci).to_latex())
+xfer_roc.to_csv(hm / "xfer-roc.csv")
+xfer_pr.to_csv(hm / "xfer-pr.csv")
+
+"""
+federation strategy
+"""
+mthd_roc, mthd_pr = get_all_cis(
+    dsets,
+    [f"mdl-c-{mthd}10" for mthd in ("fedavg", "fedavgm", "fedadam")] + ["mdl-c-all"],
+)
+print(mthd_roc.map(re_fmt_ci).to_latex())
+print(mthd_pr.map(re_fmt_ci).to_latex())
+mthd_roc.to_csv(hm / "mthd-roc.csv")
+mthd_pr.to_csv(hm / "mthd-pr.csv")
+
+"""
+number of federation rounds / leave-one-dataset-out results
+"""
+rnds_roc, rnds_pr = get_all_cis(dsets, [f"mdl-c-fedavg{i}" for i in (1, 5, 10, 50)])
+print(rnds_roc.map(re_fmt_ci).to_latex())
+print(rnds_pr.map(re_fmt_ci).to_latex())
+rnds_roc.to_csv(hm / "rnds-roc.csv")
+rnds_pr.to_csv(hm / "rnds-pr.csv")
+
+"""
+fractional datasets
+"""
+frac_roc, frac_pr = get_all_cis(
+    dsets,
+    [
+        f"mdl-c-{ds}-{i:03d}"
+        for ds in dsets
+        for i in list(range(1, 11)) + list(range(20, 110, 10))
+    ]
+    + [f"mdl-c-fedavg10{sfx}" for sfx in ("", "-cn", "-mn", "-mc")]
+    + ["mdl-c-all"],
+)
+frac_roc.to_csv(hm / "frac-roc.csv")
+frac_pr.to_csv(hm / "frac-pr.csv")
+
+
 if __name__ == "__main__":
-    # tokenwise_roc_auc, tokenwise_pr_auc = get_all_tokenwise_results(dsets, mdls)
-    # tokenwise_roc_auc.to_csv(hm / "tokenwise-roc-auc.csv")
-    # tokenwise_pr_auc.to_csv(hm / "tokenwise-pr-auc.csv")
-
-    # aggregate_roc_cis, aggregate_pr_cis = get_all_cis(dsets, mdls)
-    # aggregate_roc_cis.to_csv(hm / "aggregate-roc-cis.csv")
-    # aggregate_pr_cis.to_csv(hm / "aggregate-pr-cis.csv")
-
+    pass
     # for ds in dsets:
     #     print(
     #         f"{ds=}",
@@ -223,45 +250,44 @@ if __name__ == "__main__":
     # for ds in dsets:
     #     print(f"{ds=}", get_pvals(ds, "mdl-fedavgm10", "mdl-fedadam10"))
 
-    for inf, mthd in [
-        ("rep-based", "rep"),
-        ("generative", "mc"),
-        ("generative", "scope"),
-        ("generative", "reach"),
-    ]:
-        print(f"{inf=},{mthd=}")
-        get_all_tokenwise_results(
-            dsets,
-            [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-            inf,
-            mthd,
-        )[0]
+    # for inf, mthd in [
+    #     ("rep-based", "rep"),
+    #     ("generative", "mc"),
+    #     ("generative", "scope"),
+    #     ("generative", "reach"),
+    # ]:
+    #     print(f"{inf=},{mthd=}")
+    #     get_all_tokenwise_results(
+    #         dsets,
+    #         [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+    #         inf,
+    #         mthd,
+    #     )[0]
 
+    # rep = get_all_tokenwise_results(
+    #     dsets,
+    #     [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+    #     "rep-based",
+    #     "rep",
+    # )[0]
 
-rep = get_all_tokenwise_results(
-    dsets,
-    [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-    "rep-based",
-    "rep",
-)[0]
+    # reach = get_all_tokenwise_results(
+    #     dsets,
+    #     [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+    #     "generative",
+    #     "reach",
+    # )[0]
 
-reach = get_all_tokenwise_results(
-    dsets,
-    [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-    "generative",
-    "reach",
-)[0]
+    # mc = get_all_tokenwise_results(
+    #     dsets,
+    #     [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
+    #     "generative",
+    #     "mc",
+    # )[0]
 
-mc = get_all_tokenwise_results(
-    dsets,
-    [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-    "generative",
-    "mc",
-)[0]
-
-get_all_tokenwise_results(
-    dsets,
-    [f"mdl-{ds}-gen-big" for ds in dsets] + ["mdl-all-gen-big"],
-    "rep-based",
-    "rep",
-)[0]
+    # get_all_tokenwise_results(
+    #     dsets,
+    #     [f"mdl-{ds}-gen-big" for ds in dsets] + ["mdl-all-gen-big"],
+    #     "rep-based",
+    #     "rep",
+    # )[0]

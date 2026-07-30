@@ -2,10 +2,10 @@
 
 #SBATCH --job-name=coreopsis
 #SBATCH --output=./logs/scoring-%j.stdout
-#SBATCH --partition=gpuq
+#SBATCH --partition=bbj-wanq
+#SBATCH --qos=bbj-wan_priority
 #SBATCH --gres=gpu:1
-#SBATCH --qos=nonpreemptible
-#SBATCH --time=1-00:00:00
+#SBATCH --time=4-00:00:00
 
 # python3 -m venv .venv-gen
 # . .venv-gen/bin/activate
@@ -25,4 +25,4 @@ cotorra generative-score \
 	--scoring-config ${config_home}/scoring.yaml \
 	--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
 	--model-home ./output/${mdl} \
-	--output-home ./processed/${ds}/mdl-$(dirname ${mdl})-100
+	--output-home ./processed/${ds}/mdl-$(dirname ${mdl})
