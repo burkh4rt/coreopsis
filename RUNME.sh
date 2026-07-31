@@ -93,7 +93,7 @@ for c in cxxx-{ucmc-icu,nu-icu,mimic-icu,all}; do
 done
 
 # ablate over server rounds
-for num_server_rounds in 1 5 50; do
+for num_server_rounds in 1 5 10 50; do
 	export num_server_rounds
 	dsets=(mimic-icu ucmc-icu nu-icu)
 	nsets=${#dsets[@]}
@@ -157,23 +157,6 @@ for fed_strategy in FedAvgM FedAdam; do
 		recipes/run_federated.sh
 done
 
-export fed_strategy=FedAvg
-export num_server_rounds=100
-
-# run federated learning on all datasets
-dsets=(mimic-icu ucmc-icu nu-icu)
-nsets=${#dsets[@]}
-dsets_cfg=$(printf '"%s",' "${dsets[@]}")
-dsets_cfg=${dsets_cfg%,}
-output_home="./output/c-${fed_strategy,,}${num_server_rounds}"
-export dsets nsets dsets_cfg output_home
-sbatch --export=ALL \
-	--gres=gpu:$nsets \
-	--partition=bbj-wanq \
-	--qos=bbj-wan_priority \
-	--time=8:00:00 \
-	recipes/run_federated.sh
-
 # rep-based scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
 	mdls=(
@@ -201,6 +184,7 @@ for ds in mimic-icu ucmc-icu nu-icu; do
 	done
 done
 
+python3 recipes/baselines.py
 python3 recipes/postprocessing.py 2>&1 | tee ./logs/postprocessing.log
 python3 recipes/tokenwise.py
 python3 recipes/plotting.py

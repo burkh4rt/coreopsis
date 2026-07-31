@@ -304,57 +304,57 @@ if __name__ == "__main__":
     tkwz_roc.to_csv(hm / "tkwz-roc.csv")
     tkwz_pr.to_csv(hm / "tkwz-pr.csv")
 
-    # xfer_roc, xfer_pr = get_all_cis(
-    #     dsets,
-    #     [f"mdl-c-{ds}" for ds in list(dsets)] + [f"mdl-cxxx-{ds}-005" for ds in dsets],
-    # )
-    # xfer_roc.map(mid)
+    xfer_roc, xfer_pr = get_all_cis(
+        dsets,
+        [f"mdl-c-{ds}" for ds in list(dsets)] + [f"mdl-cxxx-{ds}-005" for ds in dsets],
+    )
+    xfer_roc.map(mid)
 
-    # print(cat(xfer_roc, xfer_pr).to_latex(float_format="%.3f"))
+    print(cat(xfer_roc, xfer_pr).to_latex(float_format="%.3f"))
 
-    # """
-    # transfer
-    # """
-    # xfer_roc, xfer_pr = get_all_cis(dsets, [f"mdl-c-{ds}" for ds in dsets])
-    # print(xfer_roc.map(re_fmt_ci).to_latex(float_format="%.3f"))
-    # print(xfer_pr.map(re_fmt_ci).to_latex(float_format="%.3f"))
-    # xfer_roc.to_csv(hm / "xfer-roc.csv")
-    # xfer_pr.to_csv(hm / "xfer-pr.csv")
+    """
+    transfer
+    """
+    xfer_roc, xfer_pr = get_all_cis(dsets, [f"mdl-c-{ds}" for ds in dsets])
+    print(xfer_roc.map(re_fmt_ci).to_latex(float_format="%.3f"))
+    print(xfer_pr.map(re_fmt_ci).to_latex(float_format="%.3f"))
+    xfer_roc.to_csv(hm / "xfer-roc.csv")
+    xfer_pr.to_csv(hm / "xfer-pr.csv")
 
-    # """
-    # federation strategy
-    # """
-    # mthd_roc, mthd_pr = get_all_cis(
-    #     dsets,
-    #     [f"mdl-c-{mthd}10" for mthd in ("fedavg", "fedavgm", "fedadam")]
-    #     + ["mdl-c-all"],
-    # )
-    # print(mthd_roc.map(re_fmt_ci).to_latex(float_format="%.3f"))
-    # print(mthd_pr.map(re_fmt_ci).to_latex(float_format="%.3f"))
-    # mthd_roc.to_csv(hm / "mthd-roc.csv")
-    # mthd_pr.to_csv(hm / "mthd-pr.csv")
+    """
+    federation strategy
+    """
+    mthd_roc, mthd_pr = get_all_cis(
+        dsets,
+        [f"mdl-c-{mthd}10" for mthd in ("fedavg", "fedavgm", "fedadam")]
+        + ["mdl-c-all"],
+    )
+    print(mthd_roc.map(re_fmt_ci).to_latex(float_format="%.3f"))
+    print(mthd_pr.map(re_fmt_ci).to_latex(float_format="%.3f"))
+    mthd_roc.to_csv(hm / "mthd-roc.csv")
+    mthd_pr.to_csv(hm / "mthd-pr.csv")
 
-    # """
-    # number of federation rounds
-    # """
-    # rnds_roc, rnds_pr = get_all_cis(dsets, [f"mdl-c-fedavg{i}" for i in (1, 5, 10, 50)])
-    # print(rnds_roc.map(re_fmt_ci).to_latex(float_format="%.3f"))
-    # print(rnds_pr.map(re_fmt_ci).to_latex(float_format="%.3f"))
-    # rnds_roc.to_csv(hm / "rnds-roc.csv")
-    # rnds_pr.to_csv(hm / "rnds-pr.csv")
+    """
+    number of federation rounds
+    """
+    rnds_roc, rnds_pr = get_all_cis(dsets, [f"mdl-c-fedavg{i}" for i in (1, 5, 10, 50)])
+    print(rnds_roc.map(re_fmt_ci).to_latex(float_format="%.3f"))
+    print(rnds_pr.map(re_fmt_ci).to_latex(float_format="%.3f"))
+    rnds_roc.to_csv(hm / "rnds-roc.csv")
+    rnds_pr.to_csv(hm / "rnds-pr.csv")
 
-    # """
-    # fractional datasets / leave-one-dataset-out results
-    # """
-    # frac_roc, frac_pr = get_all_cis(
-    #     dsets,
-    #     [
-    #         f"mdl-c-{ds}-{i:03d}"
-    #         for ds in dsets
-    #         for i in list(range(1, 11)) + list(range(15, 105, 5))
-    #     ]
-    #     + [f"mdl-c-fedavg10{sfx}" for sfx in ("", "-cn", "-mn", "-mc")]
-    #     + ["mdl-c-all"],
-    # )
-    # frac_roc.to_csv(hm / "frac-roc.csv")
-    # frac_pr.to_csv(hm / "frac-pr.csv")
+    """
+    fractional datasets / leave-one-dataset-out results
+    """
+    frac_roc, frac_pr = get_all_cis(
+        dsets,
+        [
+            f"mdl-c-{ds}-{i:03d}"
+            for ds in dsets
+            for i in list(range(1, 11)) + list(range(15, 105, 5))
+        ]
+        + [f"mdl-c-fedavg10{sfx}" for sfx in ("", "-cn", "-mn", "-mc")]
+        + ["mdl-c-all"],
+    )
+    frac_roc.to_csv(hm / "frac-roc.csv")
+    frac_pr.to_csv(hm / "frac-pr.csv")
