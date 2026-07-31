@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-plot results
+plot results from files frac-roc.csv and frac-pr.csv
 """
 
 import math

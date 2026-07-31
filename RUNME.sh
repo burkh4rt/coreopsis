@@ -201,4 +201,6 @@ for ds in mimic-icu ucmc-icu nu-icu; do
 	done
 done
 
-python3 recipes/postprocessing.py 2>&1 | tee ./logs/scoring.log
+python3 recipes/postprocessing.py 2>&1 | tee ./logs/postprocessing.log
+python3 recipes/tokenwise.py
+python3 recipes/plotting.py
