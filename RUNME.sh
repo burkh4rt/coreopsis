@@ -108,14 +108,12 @@ for ds in "${dsets[@]}"; do
 done
 
 # pull out and rename models saved at each 1/5th part of the 5 epoch run
-for c in c-{ucmc,nu,mimic}-icu-long; do
+for c in c{x-,xx-}{ucmc-icu,nu-icu,mimic-icu,all}; do
 	i=0
 	for d in $(ls -dtr ./output/$c/checkpoint-*); do
 		printf -v new "./output/$c-%03d" "$((++i))"
 		mkdir -p "$new/mdl-cotorra" && cp -a "$d/." "$new/mdl-cotorra"
 	done
-	mkdir -p ./output/$c-5/mdl-cotorra
-	cp -a ./output/$c/mdl-cotorra/. ./output/$c-5/mdl-cotorra
 done
 
 # ablate over server rounds
@@ -203,7 +201,7 @@ sbatch --export=ALL \
 # rep-based scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
 	mdls=(
-		cx-{mimic-icu,ucmc-icu,nu-icu}/mdl-cotorra
+		cxx-{mimic-icu,ucmc-icu,nu-icu,all}-005/mdl-cotorra
 	)
 	for mdl in "${mdls[@]}"; do
 		cotorra extract \

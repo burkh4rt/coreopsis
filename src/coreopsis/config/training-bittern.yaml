@@ -22,9 +22,7 @@ wandb:
   project: coreopsis
   run_name: *run_name
 
-custom_loss: !!bool true
-quantile_token_loss:
-  qt_weight: !!float 0.5
+custom_loss: !!bool false
 
 time_based_rope:
   sec_per_pos_id: !!int 300

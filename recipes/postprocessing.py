@@ -276,6 +276,15 @@ def re_fmt_ci(s, p=3):
 
 
 if __name__ == "__main__":
+    xfer_roc, xfer_pr = get_all_cis(
+        dsets, [f"mdl-cx-{ds}-005" for ds in dsets] + ["mdl-cx-all-005"]
+    )
+    xfer_roc.map(re_fmt_ci)
+
+    get_all_tokenwise_results(
+        dsets, [f"mdl-cx-{ds}-005" for ds in dsets] + ["mdl-cx-all-005"]
+    )
+
     """
     transfer
     """

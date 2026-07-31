@@ -229,12 +229,32 @@ rsync -avh \
  randi:/gpfs/data/bbj-lab/users/burkh4rt
 ```
 
-rsync -avh \
- bbj-lab1:~/coreopsis/processed \
- ~/Downloads/
 
-rsync -avh \
- ~/Downloads/processed \
- randi:/gpfs/data/bbj-lab/users/burkh4rt/
+Interactive postprocessing:
+```
+systemd-run --scope --user tmux new -s t3q || tmux a -t t3q
+srun -p tier3q \
+ --time=8:00:00 \
+ --job-name=adhoc \
+ --pty bash -i
+source .venv/bin/activate
+```
+
+#SBATCH --partition=bbj-wanq
+#SBATCH --qos=bbj-wan_priority
+#SBATCH --gres=gpu:1
+#SBATCH --time=1-00:00:00
+
+With gpu:
+```
+systemd-run --scope --user tmux new -s g1 || tmux a -t g1
+srun -p bbj-wanq \
+ --qos=bbj-wan_priority \
+ --gres=gpu:1 \
+ --time=8:00:00 \
+ --job-name=adhoc \
+ --pty bash -i
+source .venv/bin/activate
+```
 
 -->
