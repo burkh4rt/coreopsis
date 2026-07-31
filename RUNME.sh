@@ -77,38 +77,14 @@ for c in c-{ucmc,nu,mimic}-icu; do
 	cp -a ./output/$c/mdl-cotorra/. ./output/$c-100/mdl-cotorra
 done
 
-# long runs
+# GEM-* runs
 for ds in "${dsets[@]}"; do
 	sbatch --export=ALL,ds=$ds,config_home=$config_home \
-		recipes/run_long_training.sh
-done
-
-# avocet runs
-for ds in "${dsets[@]}"; do
-	sbatch --export=ALL,ds=$ds,config_home=$config_home \
-		recipes/run_avocet_training.sh
-done
-
-# bittern runs
-i=0
-jid=13508262
-for ds in "${dsets[@]}"; do
-	sbatch --export=ALL,ds=$ds,config_home=$config_home \
-		--dependency="afterany:$((jid + i++))" \
-		recipes/run_bittern_training.sh
-done
-
-# cormorant runs
-i=0
-jid=13508775
-for ds in "${dsets[@]}"; do
-	sbatch --export=ALL,ds=$ds,config_home=$config_home \
-		--dependency="afterany:$((jid + 3 - i++))" \
-		recipes/run_cormorant_training.sh
+		recipes/run_star_training.sh
 done
 
 # pull out and rename models saved at each 1/5th part of the 5 epoch run
-for c in c{x-,xx-}{ucmc-icu,nu-icu,mimic-icu,all}; do
+for c in cxxx-{ucmc-icu,nu-icu,mimic-icu,all}; do
 	i=0
 	for d in $(ls -dtr ./output/$c/checkpoint-*); do
 		printf -v new "./output/$c-%03d" "$((++i))"
@@ -201,27 +177,7 @@ sbatch --export=ALL \
 # rep-based scoring
 for ds in mimic-icu ucmc-icu nu-icu; do
 	mdls=(
-		cxx-{mimic-icu,ucmc-icu,nu-icu,all}-005/mdl-cotorra
-	)
-	for mdl in "${mdls[@]}"; do
-		cotorra extract \
-			--extraction-config ${config_home}/extraction.yaml \
-			--processed-data-home ./processed/${ds} \
-			--model-home ./output/${mdl} \
-			--output-home "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cp ./processed/${ds}/*.{yaml,parquet} "./processed/${ds}/mdl-$(dirname ${mdl})"
-		cotorra rep-based-score \
-			--scoring-config ${config_home}/scoring.yaml \
-			--processed-data-home "./processed/${ds}/mdl-$(dirname ${mdl})" \
-			--model-home ./output/${mdl} \
-			--estimator logistic-CV
-	done
-done
-
-# rep-based scoring
-for ds in mimic-icu ucmc-icu nu-icu; do
-	mdls=(
-		c-{mimic-icu,ucmc-icu,nu-icu}-long/mdl-cotorra
+		cxxx-{mimic-icu,ucmc-icu,nu-icu,all}-005/mdl-cotorra
 		c-${ds}-{{001..010},{015..100..5}}/mdl-cotorra
 		c-fedavg1/coreopsis-round-1
 		c-fedavg5/coreopsis-round-5

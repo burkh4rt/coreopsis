@@ -6,6 +6,7 @@ load and select tabular results
 
 import pathlib
 
+import numpy as np
 import pandas as pd
 
 pd.options.display.float_format = "{:,.3f}".format
@@ -16,47 +17,68 @@ pd.options.display.expand_frame_repr = False
 pd.options.display.show_dimensions = True
 
 hm = pathlib.Path("~/Downloads").expanduser().resolve()
-dsets = ("ucmc-icu", "nu-icu", "mimic-icu")
-methods = ("fedavg", "fedavgm", "fedadam")
 
 
-def fmt_ci(s, p=3):
-    """Format a stringified CI (e.g. "[0.76768137 0.79238952]") to p decimals."""
-    lo, hi = (float(v) for v in s.strip("[]").split())
-    return f"[{lo:.{p}f}, {hi:.{p}f}]"
-
-
-def re_fmt_ci(s, p=3):
-    """Format a stringified CI (e.g. "[0.76768137 0.79238952]") to p decimals."""
-    lo, hi = (float(v) for v in s.strip("[]").split())
-    return f"{(lo + hi) / 2:.{p}f} (±{(hi - lo) / 2:.{p}f})"
-
-
-agg_roc_ci = pd.read_csv(hm / "aggregate-roc-cis.csv", index_col=0).rename_axis(
-    "models"
+bl_roc_lr = (
+    pd.read_csv(hm / "bl-roc-auc-LR-1H.csv", index_col=[0, 1])
+    .rename_axis(index={"train": "training"})
+    .rename(index=lambda s: s.removesuffix("-icu").upper(), level="training")
+    .assign(model="LR")
+    .set_index("model", append=True)
+    .reorder_levels(["token", "model", "training"])
 )
-agg_pr_ci = pd.read_csv(hm / "aggregate-pr-cis.csv", index_col=0).rename_axis("models")
 
-tks_roc = pd.read_csv(hm / "tokenwise-roc-auc.csv").set_index(["token", "models"])
-tks_pr = pd.read_csv(hm / "tokenwise-pr-auc.csv").set_index(["token", "models"])
-
-agg_roc = tks_roc.groupby("models").mean()
-agg_pr = tks_pr.groupby("models").mean()
-
-# transfer
-mdls = (
-    [f"mdl-{ds}-100" for ds in dsets]
-    + [f"mdl-{method}10" for method in methods]
-    + ["mdl-all"]
+bl_roc_lgbm = (
+    pd.read_csv(hm / "bl-roc-auc-LGBM-C.csv", index_col=[0, 1])
+    .rename_axis(index={"train": "training"})
+    .rename(index=lambda s: s.removesuffix("-icu").upper(), level="training")
+    .assign(model="LGBM")
+    .set_index("model", append=True)
+    .reorder_levels(["token", "model", "training"])
 )
-print(agg_roc_ci.loc[mdls].map(re_fmt_ci))
-print(agg_pr_ci.loc[mdls].map(re_fmt_ci))
-print(agg_roc.loc[mdls])
-print(agg_pr.loc[mdls])
 
-# methods
-mdls = [f"mdl-{method}10" for method in methods] + ["mdl-all"]
-print(agg_roc_ci.loc[mdls].map(fmt_ci))
-print(agg_pr_ci.loc[mdls].map(re_fmt_ci))
-print(agg_roc.loc[mdls].to_latex(float_format="%.3f"))
-print(agg_pr.loc[mdls].to_latex(float_format="%.3f"))
+tkwz_roc = (
+    pd.read_csv(hm / "tkwz-roc.csv", index_col=[0, 1])
+    .rename_axis(index={"models": "training"})
+    .rename(index=lambda s: s, level="training")
+    .assign(
+        model=lambda df: df.index.get_level_values("training").map(
+            lambda s: "GEM" if "cx" not in s else "GEM-*"
+        )
+    )
+    .set_index("model", append=True)
+    .reorder_levels(["token", "model", "training"])
+)
+
+roc = pd.concat([bl_roc_lr, bl_roc_lgbm, tkwz_roc]).rename(
+    columns=lambda s: s.split("-icu")[0]
+)
+
+outcomes = {
+    k.split("//")[-1]: k for k in set(roc.index.get_level_values("token").tolist())
+}
+outcomes["vasopressors"] = outcomes["pressor_init"]
+del outcomes["pressor_init"]
+
+# relabel the token level with the short outcome names, e.g.
+# `LABEL//pressor_init` -> `vasopressors`
+roc = roc.rename(index={v: k for k, v in outcomes.items()}, level="token")
+
+
+for i, part in enumerate(np.split(np.array(sorted(outcomes.keys())), 3)):
+    roc_by_token = (
+        roc.loc[lambda df: df.index.get_level_values("token").isin(part)]
+        .rename_axis(columns="evaluation")
+        .unstack("token")
+        .swaplevel(axis="columns")
+        .reindex(
+            index=roc.index.droplevel("token").unique(),
+            columns=pd.MultiIndex.from_product(
+                [part, roc.columns], names=["token", "evaluation"]
+            ),
+        )
+    )
+    print(roc_by_token.to_latex(float_format="%.3f"))
+
+
+tkwz_pr = pd.read_csv(hm / "tkwz-pr.csv")

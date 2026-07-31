@@ -14,6 +14,6 @@ source ~/.bashrc
 source .venv/bin/activate
 
 cotorra train \
-	--training-config ${config_home}/training-bittern.yaml \
+	--training-config ${config_home}/training-star.yaml \
 	--processed-data-home ./processed/${ds} \
-	--output-home ./output/cxx-${ds}
+	--output-home ./output/cxxx-${ds}

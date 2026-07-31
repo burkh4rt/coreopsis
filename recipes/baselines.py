@@ -159,7 +159,7 @@ for lgbm in (True, False):
             )
             .rename_axis("train")
             .map(re_fmt_ci)
-            .to_latex()
+            .to_latex(float_format="%.3f")
         )
 
         bl_roc_auc.to_csv(hm / f"bl-roc-auc-{model}-{method}.csv")
