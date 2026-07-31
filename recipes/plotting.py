@@ -69,6 +69,7 @@ COL_ALL = colors["goldenrod_dark"]  # single model pooled over all data
 # element proportionally to the figure's own width makes labels, ticks, markers,
 # and lines appear uniform once all figures share the same final width.
 REF_WIDTH = 900  # width at which the base sizes below apply (scale factor 1.0)
+FONT_FAMILY = "Gotham Book, Gotham, Helvetica, sans-serif"  # UChicago brand face
 FONT_SIZE = 30  # axis titles, tick labels, legend entries
 TITLE_SIZE = 42  # main figure title
 SUBTITLE_SIZE = 36  # subplot (panel) titles
@@ -89,8 +90,13 @@ plot_dsets = {
 frac_nums = list(range(1, 11)) + list(range(20, 110, 10))
 fracs = [n / 100 for n in frac_nums]
 
-# common lower bound for the (log) x-axes: smallest sample count plotted anywhere
+# common lower bound for the (log) x-axes: smallest sample count plotted
+# anywhere. Each panel's *upper* bound is exactly its own site's full
+# training-set size, so no panel's axis implies more data than the site has;
+# x_hi, the largest of those, is the panel that gets the full figure width
 x_lo = min(fracs) * min(size for *_, size in plot_dsets.values())
+x_hi = max(size for *_, size in plot_dsets.values())
+x_log_span = math.log10(x_hi) - math.log10(x_lo)
 
 # shared, uniform ticks across all panels (plotly clips to each panel's range)
 x_tickvals = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000]
@@ -178,24 +184,29 @@ for metric_key, metric_label, metric_slug in metrics:
     # compared against
     ci = load_cis(f"frac-{metric_key}.csv")
 
-    fig_width = 900
+    fig_width = 650
     s = fig_width / REF_WIDTH  # scale factor for all sized elements
 
-    fig = make_subplots(
-        rows=1,
-        cols=len(plot_dsets),
-        shared_yaxes=True,
-        subplot_titles=[name for name, *_ in plot_dsets.values()],
-        horizontal_spacing=0.03,
-        # widths proportional to log-span up to each size -> uniform log x-scale
-        column_widths=[
-            math.log10(size) - math.log10(x_lo) for *_, size in plot_dsets.values()
-        ],
-    )
-    fig.update_annotations(font_size=SUBTITLE_SIZE * s)  # subplot titles
+    n_rows = len(plot_dsets)
 
-    for col, (ds, (name, other_fed, size)) in enumerate(plot_dsets.items(), start=1):
-        show = col == 1  # one shared legend
+    # each panel keeps its own x axis (they end at different training sizes), so
+    # no shared_xaxes here; the spacing leaves room for per-panel tick labels
+    fig = make_subplots(
+        rows=n_rows,
+        cols=1,
+        subplot_titles=[name for name, *_ in plot_dsets.values()],
+        vertical_spacing=0.10,
+    )
+    # subplot titles, set flush with the panels' left edge instead of centered
+    # (every panel's x domain starts at the same left edge)
+    fig.update_annotations(
+        font_size=SUBTITLE_SIZE * s, x=fig.layout.xaxis.domain[0], xanchor="left"
+    )
+
+    y_extremes = []  # every CI bound plotted, over all panels -> shared y range
+
+    for row, (ds, (name, other_fed, size)) in enumerate(plot_dsets.items(), start=1):
+        show = row == 1  # one shared legend
 
         # approximate training-set size at each fraction of this site's data
         sizes = [f * size for f in fracs]
@@ -207,12 +218,15 @@ for metric_key, metric_label, metric_slug in metrics:
             ("all data (pooled)", "mdl-c-all", COL_ALL),
         ]
 
-        # 95% CI bands for the baselines, drawn behind everything else
+        # 95% CI bands for the baselines, drawn behind everything else; these
+        # models see fixed amounts of data, so they span this panel's whole
+        # x-axis rather than only the extent of the site's sweep
         for label, mdl, color in baselines:
             lo, hi = get_ci(ci, mdl, ds, metric_slug)
+            y_extremes += [lo, hi]
             fig.add_trace(
                 go.Scatter(
-                    x=[sizes[0], sizes[-1], sizes[-1], sizes[0]],
+                    x=[x_lo, size, size, x_lo],
                     y=[lo, lo, hi, hi],
                     fill="toself",
                     fillcolor=rgba(color, BAND_ALPHA),
@@ -222,37 +236,16 @@ for metric_key, metric_label, metric_slug in metrics:
                     showlegend=False,
                     hoverinfo="skip",
                 ),
-                row=1,
-                col=col,
+                row=row,
+                col=1,
             )
-
-        # site-trained sweep over increasing fractions of this site's data,
-        # with asymmetric 95% CI error bars on each point
-        curve_ci = [
-            get_ci(ci, f"mdl-c-{ds}-{n:03d}", ds, metric_slug) for n in frac_nums
-        ]
-        fig.add_trace(
-            go.Scatter(
-                x=sizes,
-                y=[center(c) for c in curve_ci],
-                mode="lines+markers",
-                name="site-trained",
-                legendgroup="site-trained",
-                showlegend=show,
-                line=dict(color=COL_CURVE, width=LINE_WIDTH * s),
-                marker=dict(size=MARKER_SIZE * s, color=COL_CURVE),
-                error_y=make_error_y(curve_ci, COL_CURVE, s),
-            ),
-            row=1,
-            col=col,
-        )
 
         # baseline center lines drawn on top of their CI bands
         for label, mdl, color in baselines:
             val = center(get_ci(ci, mdl, ds, metric_slug))
             fig.add_trace(
                 go.Scatter(
-                    x=[sizes[0], sizes[-1]],
+                    x=[x_lo, size],
                     y=[val, val],
                     mode="lines",
                     name=label,
@@ -260,35 +253,72 @@ for metric_key, metric_label, metric_slug in metrics:
                     showlegend=show,
                     line=dict(color=color, width=LINE_WIDTH * s, dash="dash"),
                 ),
-                row=1,
-                col=col,
+                row=row,
+                col=1,
             )
-        fig.update_xaxes(
-            title_text="training size",
-            type="log",
-            range=[math.log10(x_lo), math.log10(size)],
-            tickvals=x_tickvals,
-            ticktext=x_ticktext,
-            row=1,
-            col=col,
+
+        # site-trained sweep over increasing fractions of this site's data, with
+        # asymmetric 95% CI error bars. Added last so it paints over the
+        # baselines; legendrank keeps it first in the legend anyway. The sweep's
+        # end points sit exactly on the axis bounds, so cliponaxis lets their
+        # markers and error-bar caps spill past the edge instead of being clipped
+        curve_ci = [
+            get_ci(ci, f"mdl-c-{ds}-{n:03d}", ds, metric_slug) for n in frac_nums
+        ]
+        y_extremes += [b for c in curve_ci for b in c]
+        fig.add_trace(
+            go.Scatter(
+                x=sizes,
+                y=[center(c) for c in curve_ci],
+                mode="lines+markers",
+                name="site-trained",
+                legendgroup="site-trained",
+                legendrank=0,
+                showlegend=show,
+                cliponaxis=False,
+                line=dict(color=COL_CURVE, width=LINE_WIDTH * s),
+                marker=dict(size=MARKER_SIZE * s, color=COL_CURVE),
+                error_y=make_error_y(curve_ci, COL_CURVE, s),
+            ),
+            row=row,
+            col=1,
         )
 
-    fig.update_yaxes(title_text=f"mean {metric_label}", row=1, col=1)
+        # the axis stops exactly at this site's full training size, and the panel
+        # is narrowed to its share of the largest site's log-span so that all
+        # panels still share one log x-scale (the vertical-stack counterpart of
+        # the side-by-side layout's column_widths)
+        fig.update_xaxes(
+            type="log",
+            range=[math.log10(x_lo), math.log10(size)],
+            domain=[0, (math.log10(size) - math.log10(x_lo)) / x_log_span],
+            tickvals=x_tickvals,
+            ticktext=x_ticktext,
+            row=row,
+            col=1,
+        )
+
+    fig.update_xaxes(title_text="training size", row=n_rows, col=1)
+
+    # stacked panels each own their y axis (make_subplots' shared_yaxes only
+    # shares across columns), so the comparability the side-by-side version got
+    # for free comes from one explicit range spanning every panel's CIs
+    y_bounds = [v for v in y_extremes if not math.isnan(v)]
+    y_pad = 0.06 * (max(y_bounds) - min(y_bounds))
+    fig.update_yaxes(range=[min(y_bounds) - y_pad, max(y_bounds) + y_pad])
+    # label only the middle panel, so the one title reads as covering the stack
+    fig.update_yaxes(title_text=f"mean {metric_label}", row=(n_rows + 1) // 2, col=1)
     fig.update_layout(
         template="plotly_white",
-        font=dict(
-            family="CMU Serif, Latin Modern Roman, serif",
-            size=FONT_SIZE * s,
-            color="black",
-        ),
+        font=dict(family=FONT_FAMILY, size=FONT_SIZE * s, color="black"),
         title=dict(
             text=f"Mean {metric_label} vs. training set size",
             font=dict(size=TITLE_SIZE * s, color="black"),
         ),
-        legend=dict(orientation="h", yanchor="top", y=-0.36, xanchor="center", x=0.5),
-        margin=dict(l=60, r=30, t=120, b=210),
+        legend=dict(orientation="h", yanchor="top", y=-0.10, xanchor="center", x=0.5),
+        margin=dict(l=60, r=30, t=110, b=200),
         width=fig_width,
-        height=690,
+        height=1450,
     )
     fig.write_image(hm / f"data-fraction-sweep-{metric_slug}-aggregate.pdf")
 
@@ -325,11 +355,7 @@ for metric_key, metric_label, metric_slug in metrics:
     fig.update_yaxes(title_text=f"mean {metric_label}")
     fig.update_layout(
         template="plotly_white",
-        font=dict(
-            family="CMU Serif, Latin Modern Roman, serif",
-            size=FONT_SIZE * s,
-            color="black",
-        ),
+        font=dict(family=FONT_FAMILY, size=FONT_SIZE * s, color="black"),
         title=dict(
             text=f"Mean {metric_label} vs. federation rounds",
             font=dict(size=TITLE_SIZE * s, color="black"),

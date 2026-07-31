@@ -9,14 +9,16 @@ import importlib.resources as resources
 import os
 import pathlib
 import typing
+import warnings
 
+import joblib as jl
 import numpy as np
 import pandas as pd
 import polars as pl
 from omegaconf import OmegaConf
 from sklearn import metrics as skl_mets
 
-from cotorra.util import bootstrap_aggregate_ci, bootstrap_aggregate_pval
+from cotorra.util import bootstrap_aggregate_ci, bootstrap_aggregate_pval, pr_auc_score
 
 pd.options.display.float_format = "{:,.3f}".format
 pd.options.display.max_columns = None
@@ -137,6 +139,90 @@ def get_all_cis(
     return cis_roc_auc, cis_pr_auc
 
 
+def get_diff_cis(
+    ds,
+    mdl0,
+    mdl1,
+    inference0: typing.Literal["rep-based", "generative"] = "rep-based",
+    method0: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+    inference1: typing.Literal["rep-based", "generative"] = "rep-based",
+    method1: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+    n_samples: int = 1_000,
+    alpha: float = 0.05,
+    rng: np.random.Generator = np.random.default_rng(seed=42),
+):
+    """
+    Paired-bootstrap percentile interval for the difference in label-averaged
+    performance between `mdl1` and the baseline `mdl0` (i.e. mdl1 − mdl0); both
+    models are scored on the same subjects, so subjects are resampled as units
+    to preserve the within-subject correlation between the two models.
+    """
+    df0 = pl.read_parquet(
+        hm / "processed" / ds / mdl0 / f"scores-{inference0}-*.parquet"
+    )
+    df1 = pl.read_parquet(
+        hm / "processed" / ds / mdl1 / f"scores-{inference1}-*.parquet"
+    )
+    y_trues, y_score0s, y_score1s = [], [], []
+    for tt in grokked_outcome_tokens:
+        y_qual0, y_true0, y_score0 = (
+            df0.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_{method0}_score")
+            .to_numpy()
+            .T
+        )
+        y_qual1, y_true1, y_score1 = (
+            df1.select(~pl.col(f"{tt}_past"), f"{tt}_future", f"{tt}_{method1}_score")
+            .to_numpy()
+            .T
+        )
+        assert np.array_equal(
+            y_true0[y_qual0.astype(bool)], y_true1[y_qual1.astype(bool)]
+        )
+        y_trues.append(y_true0[y_qual0.astype(bool)])
+        y_score0s.append(np.nan_to_num(y_score0)[y_qual0.astype(bool)])
+        y_score1s.append(np.nan_to_num(y_score1)[y_qual1.astype(bool)])
+
+    def get_diffs_i(rng_i: np.random.Generator) -> tuple[float, float]:
+        warnings.filterwarnings("ignore")
+        roc_diffs, pr_diffs = [], []
+        for yt, s0, s1 in zip(y_trues, y_score0s, y_score1s):
+            samp = rng_i.choice(len(yt), size=len(yt), replace=True)
+            yti, s0i, s1i = yt[samp], s0[samp], s1[samp]
+            roc_diffs.append(
+                skl_mets.roc_auc_score(yti, s1i) - skl_mets.roc_auc_score(yti, s0i)
+            )
+            pr_diffs.append(pr_auc_score(yti, s1i) - pr_auc_score(yti, s0i))
+        return np.mean(roc_diffs), np.mean(pr_diffs)
+
+    with jl.Parallel(n_jobs=-1) as par:
+        diffs = par(jl.delayed(get_diffs_i)(rng_i) for rng_i in rng.spawn(n_samples))
+    return tuple(
+        np.nanquantile([d[i] for d in diffs], q=[alpha / 2, 1 - (alpha / 2)])
+        for i in (0, 1)
+    )
+
+
+def get_all_diff_cis(
+    dsets,
+    mdls,
+    mdl_base,
+    inference: typing.Literal["rep-based", "generative"] = "rep-based",
+    method: typing.Literal["mc", "scope", "reach", "rep"] = "rep",
+):
+    """CIs for each model in `mdls` minus `mdl_base`, per dataset."""
+    diffs_roc_auc = pd.DataFrame(index=mdls, columns=dsets)
+    diffs_pr_auc = diffs_roc_auc.copy()
+    for mdl in mdls:
+        for ds in dsets:
+            try:
+                diffs_roc_auc.loc[mdl, ds], diffs_pr_auc.loc[mdl, ds] = get_diff_cis(
+                    ds, mdl_base, mdl, inference, method, inference, method
+                )
+            except (FileNotFoundError, pl.exceptions.ComputeError):
+                pass
+    return diffs_roc_auc, diffs_pr_auc
+
+
 def get_pvals(
     ds,
     mdl0,
@@ -177,7 +263,7 @@ def get_pvals(
         y_score1s,
         n_samples=1_000,
         metrics=("avg_roc_auc", "avg_pr_auc"),
-        paired=True,
+        paired=False,
         alternative=alternative,
     )
     return float(cis["avg_roc_auc"]), float(cis["avg_pr_auc"])
@@ -189,105 +275,50 @@ def re_fmt_ci(s, p=3):
     return f"{(lo + hi) / 2:.{p}f} (±{(hi - lo) / 2:.{p}f})"
 
 
-"""
-transfer
-"""
-xfer_roc, xfer_pr = get_all_cis(dsets, [f"mdl-c-{ds}" for ds in dsets])
-print(xfer_roc.map(re_fmt_ci).to_latex())
-print(xfer_pr.map(re_fmt_ci).to_latex())
-xfer_roc.to_csv(hm / "xfer-roc.csv")
-xfer_pr.to_csv(hm / "xfer-pr.csv")
-
-"""
-federation strategy
-"""
-mthd_roc, mthd_pr = get_all_cis(
-    dsets,
-    [f"mdl-c-{mthd}10" for mthd in ("fedavg", "fedavgm", "fedadam")] + ["mdl-c-all"],
-)
-print(mthd_roc.map(re_fmt_ci).to_latex())
-print(mthd_pr.map(re_fmt_ci).to_latex())
-mthd_roc.to_csv(hm / "mthd-roc.csv")
-mthd_pr.to_csv(hm / "mthd-pr.csv")
-
-"""
-number of federation rounds / leave-one-dataset-out results
-"""
-rnds_roc, rnds_pr = get_all_cis(dsets, [f"mdl-c-fedavg{i}" for i in (1, 5, 10, 50)])
-print(rnds_roc.map(re_fmt_ci).to_latex())
-print(rnds_pr.map(re_fmt_ci).to_latex())
-rnds_roc.to_csv(hm / "rnds-roc.csv")
-rnds_pr.to_csv(hm / "rnds-pr.csv")
-
-"""
-fractional datasets
-"""
-frac_roc, frac_pr = get_all_cis(
-    dsets,
-    [
-        f"mdl-c-{ds}-{i:03d}"
-        for ds in dsets
-        for i in list(range(1, 11)) + list(range(20, 110, 10))
-    ]
-    + [f"mdl-c-fedavg10{sfx}" for sfx in ("", "-cn", "-mn", "-mc")]
-    + ["mdl-c-all"],
-)
-frac_roc.to_csv(hm / "frac-roc.csv")
-frac_pr.to_csv(hm / "frac-pr.csv")
-
-
 if __name__ == "__main__":
-    pass
-    # for ds in dsets:
-    #     print(
-    #         f"{ds=}",
-    #         get_pvals(ds, "mdl-fedavg10", "mdl-fedavgm10", alternative="one-sided"),
-    #     )
+    """
+    transfer
+    """
+    xfer_roc, xfer_pr = get_all_cis(dsets, [f"mdl-c-{ds}" for ds in dsets])
+    print(xfer_roc.map(re_fmt_ci).to_latex())
+    print(xfer_pr.map(re_fmt_ci).to_latex())
+    xfer_roc.to_csv(hm / "xfer-roc.csv")
+    xfer_pr.to_csv(hm / "xfer-pr.csv")
 
-    # for ds in dsets:
-    #     print(f"{ds=}", get_pvals(ds, "mdl-fedavg10", "mdl-fedadam10"))
+    """
+    federation strategy
+    """
+    mthd_roc, mthd_pr = get_all_cis(
+        dsets,
+        [f"mdl-c-{mthd}10" for mthd in ("fedavg", "fedavgm", "fedadam")]
+        + ["mdl-c-all"],
+    )
+    print(mthd_roc.map(re_fmt_ci).to_latex())
+    print(mthd_pr.map(re_fmt_ci).to_latex())
+    mthd_roc.to_csv(hm / "mthd-roc.csv")
+    mthd_pr.to_csv(hm / "mthd-pr.csv")
 
-    # for ds in dsets:
-    #     print(f"{ds=}", get_pvals(ds, "mdl-fedavgm10", "mdl-fedadam10"))
+    """
+    number of federation rounds
+    """
+    rnds_roc, rnds_pr = get_all_cis(dsets, [f"mdl-c-fedavg{i}" for i in (1, 5, 10, 50)])
+    print(rnds_roc.map(re_fmt_ci).to_latex())
+    print(rnds_pr.map(re_fmt_ci).to_latex())
+    rnds_roc.to_csv(hm / "rnds-roc.csv")
+    rnds_pr.to_csv(hm / "rnds-pr.csv")
 
-    # for inf, mthd in [
-    #     ("rep-based", "rep"),
-    #     ("generative", "mc"),
-    #     ("generative", "scope"),
-    #     ("generative", "reach"),
-    # ]:
-    #     print(f"{inf=},{mthd=}")
-    #     get_all_tokenwise_results(
-    #         dsets,
-    #         [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-    #         inf,
-    #         mthd,
-    #     )[0]
-
-    # rep = get_all_tokenwise_results(
-    #     dsets,
-    #     [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-    #     "rep-based",
-    #     "rep",
-    # )[0]
-
-    # reach = get_all_tokenwise_results(
-    #     dsets,
-    #     [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-    #     "generative",
-    #     "reach",
-    # )[0]
-
-    # mc = get_all_tokenwise_results(
-    #     dsets,
-    #     [f"mdl-{ds}-gen" for ds in dsets] + ["mdl-fedavg10-gen", "mdl-all-gen"],
-    #     "generative",
-    #     "mc",
-    # )[0]
-
-    # get_all_tokenwise_results(
-    #     dsets,
-    #     [f"mdl-{ds}-gen-big" for ds in dsets] + ["mdl-all-gen-big"],
-    #     "rep-based",
-    #     "rep",
-    # )[0]
+    """
+    fractional datasets / leave-one-dataset-out results
+    """
+    frac_roc, frac_pr = get_all_cis(
+        dsets,
+        [
+            f"mdl-c-{ds}-{i:03d}"
+            for ds in dsets
+            for i in list(range(1, 11)) + list(range(15, 105, 5))
+        ]
+        + [f"mdl-c-fedavg10{sfx}" for sfx in ("", "-cn", "-mn", "-mc")]
+        + ["mdl-c-all"],
+    )
+    frac_roc.to_csv(hm / "frac-roc.csv")
+    frac_pr.to_csv(hm / "frac-pr.csv")
