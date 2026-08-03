@@ -257,7 +257,7 @@ ruff check . --fix
 
 Send to bbj-lab1:
 ```
-for d in data-raw processed; do
+for d in data-raw output processed; do
 	ln -s /mnt/bbj-lab/users/burkh4rt/$d $d
 done
 ```

@@ -47,7 +47,7 @@
         coreopsis = "coreopsis.cli:main"
 
     [project.urls]
-        Repository = "https://github.com/burkh4rt/coreopsis"
+        Repository = "https://github.com/bbj-lab/coreopsis"
 
     [project.optional-dependencies]
         dev = [ "pip", "ruff" ]

@@ -4,6 +4,7 @@
 load results from postprocessing.py and baselines.py and create tables
 """
 
+import os
 import pathlib
 
 import numpy as np
@@ -16,7 +17,10 @@ pd.options.display.width = None
 pd.options.display.expand_frame_repr = False
 pd.options.display.show_dimensions = True
 
-hm = pathlib.Path("~/Downloads").expanduser().resolve()
+hm = (
+    pathlib.Path("/gpfs/data" if os.uname().nodename.startswith("cri") else "/mnt")
+    / "bbj-lab/users/burkh4rt"
+)
 
 
 def extract_site(s):
