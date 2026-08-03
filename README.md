@@ -21,9 +21,13 @@ margin: 0 auto; -webkit-mask-image: radial-gradient(
 ## About
 
 This [flower](https://flower.ai) app trains generative event models (GEMs) on
-tokenized electronic health records (EHRs) in a federated manner. In 1989, "the
-Chicago Botanic Garden created a garden solely to compare perennials, and
-_coreopsis_ was one of the inaugural trials." [^1] The
+tokenized electronic health records (EHRs) in a federated manner. Each
+participating site becomes a client that trains on its own data; only model
+weights leave the site, and the server averages them into a shared model once per
+round.
+
+In 1989, "the Chicago Botanic Garden created a garden solely to compare
+perennials, and _coreopsis_ was one of the inaugural trials." [^1] The
 [Lavin Plant Evaluation Garden](https://www.chicagobotanic.org/gardens/planteval)
 remains open to this day.
 
@@ -32,8 +36,9 @@ remains open to this day.
 ```bash
 git clone git@github.com:bbj-lab/coreopsis.git
 cd coreopsis
-# ln -s ../cocoa/processed ./processed
 mkdir logs
+# point `processed/` at the tokenized data produced by cocoa, e.g.
+# ln -s ../cocoa/processed ./processed
 python -m venv .venv
 . .venv/bin/activate
 pip install -e . \
@@ -41,13 +46,49 @@ pip install -e . \
   --extra-index-url https://pypi.org/simple
 ```
 
+`data-raw/`, `processed/`, and `output/` are typically symlinks to shared
+storage; `logs/` needs to exist before the first run.
+
 ## Run training
 
 ```sh
 tmux new -s co || tmux a -t co
 . .venv/bin/activate
-coreopsis run . | tee "logs/$(date --iso-8601=minutes).stddout"
+coreopsis run . | tee "logs/$(date --iso-8601=minutes).stdout"
 ```
+
+This runs the default (`standard`) federation over all three datasets for 10
+rounds. Logs are not streamed unless `--stream` is passed. Some variations:
+
+```sh
+# cpu-only smoke test
+coreopsis run . local --stream
+
+# override run parameters (note the nested quoting)
+coreopsis run . standard --stream \
+  --run-config "'num-server-rounds'=5 'fed-strategy'='FedAdam'"
+
+# a single client, i.e. non-federated training through the same code path
+coreopsis run . standard \
+  --run-config "'datasets'='[\"mimic-icu\"]'" \
+  --federation-config "options.num-supernodes=1"
+```
+
+On SLURM, submit [recipes/run_federated.sh](recipes/run_federated.sh), which
+wraps the same command and takes its dataset list, strategy, round count, and
+output directory from the environment.
+
+### Outputs
+
+After every round the server writes the aggregated model to
+
+```
+<output-home>/coreopsis-round-<round>/
+```
+
+as a Hugging Face `save_pretrained` directory, so any round of a run can be
+passed straight to `cotorra extract` / `cotorra rep-based-score` as a
+`--model-home`.
 
 ## Configuration
 
@@ -64,6 +105,10 @@ The `[tool.flwr.app.config]` table controls top-level training behaviour:
 | `processed-data-dir` | `./processed/`                         | Path to processed data (tokenized timelines, splits, tokenizer config) |
 | `training-config`    | `./src/coreopsis/config/training.yaml` | Path to the training configuration YAML [see below]                    |
 
+The server also honours `fraction-fit` and `fraction-evaluate`, but neither is
+declared in the table above, so both stay at their `1.0` default — every client
+participates in every round — until you add them there.
+
 Federations are defined under `[tool.flwr.federations]`. Three are provided out
 of the box:
 
@@ -73,9 +118,11 @@ of the box:
 | `minimal`              | 3                | 1             | 1             |
 | `standard` _(default)_ | 3                | 1             | 1             |
 
-Run a specific federation with `coreopsis run . <federation-name>`. Add new
-federations by adding a `[tool.flwr.federations.<name>]` block with the same
-`options.*` keys.
+`minimal` and `standard` currently request identical resources; `local` is the
+cpu-only configuration used for smoke tests. Run a specific federation with
+`coreopsis run . <federation-name>`. Add new federations by adding a
+`[tool.flwr.federations.<name>]` block with the same `options.*` keys, or
+override the values of an existing one per run with `--federation-config`.
 
 ### Collation / tokenization / winnowing
 
@@ -85,7 +132,24 @@ These configurations are borrowed directly from ☕️
 ### Training / extraction / scoring
 
 These configurations are borrowed directly from 🦜
-[cotorra](https://github.com/bbj-lab/cotorra).
+[cotorra](https://github.com/bbj-lab/cotorra). Three training configs ship under
+[src/coreopsis/config/](src/coreopsis/config/); all describe the same
+Llama-3.2-1B–derived architecture (hidden size 1024, 9 layers, 8 heads):
+
+| Config                   | Used for                 | Notes                                                        |
+| ------------------------ | ------------------------ | ------------------------------------------------------------ |
+| `training.yaml`          | per-site `cotorra train` | 1 epoch; eval/save every 1/100th of training                 |
+| `training-no-ckpts.yaml` | federated runs           | eval/save disabled — the server snapshots each round instead |
+| `training-star.yaml`     | the `GEM-*` runs         | 5 epochs; eval/save every 1/5th; time-based RoPE and NEFTune |
+
+## Reproducing the experiments
+
+[RUNME.sh](RUNME.sh) is the end-to-end driver used on the cluster: CLIF
+harmonization and SOFA scoring, cocoa `collate` → `tokenize` → `winnow`, per-site
+`cotorra train`, federated runs sweeping round counts, strategies, and dataset
+pairs, then `cotorra extract` → `cotorra rep-based-score` and the tables and
+figures produced by [recipes/](recipes/). The `recipes/` scripts are one-off
+analysis utilities and are not part of the installed package.
 
 ## Modeling ecosystem
 
