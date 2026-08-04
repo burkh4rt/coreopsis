@@ -188,3 +188,4 @@ python3 recipes/baselines.py
 python3 recipes/postprocessing.py 2>&1 | tee ./logs/postprocessing.log
 python3 recipes/tokenwise.py
 python3 recipes/plotting.py
+python3 recipes/analyze-site-data.py
